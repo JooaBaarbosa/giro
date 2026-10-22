@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Visão geral{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ store_name }}</h1>
+  <p class="muted">Estoque de hoje, {{ today.strftime("%d/%m/%Y") }}</p>
+</div>
+
+<section class="kpis">
+  <a class="kpi {% if ov.below_min %}kpi-alert{% endif %}" href="#product-table">
+    <span class="kpi-label">Abaixo do mínimo</span>
+    <span class="kpi-value">{{ ov.below_min }}</span>
+  </a>
+  <div class="kpi">
+    <span class="kpi-label">Saída hoje</span>
+    <span class="kpi-value">{{ ov.sold_today | qty }}</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Saída no mês</span>
+    <span class="kpi-value">{{ ov.sold_month | qty }}</span>
+  </div>
+  <a class="kpi {% if ov.awaiting_approval %}kpi-action{% endif %}" href="/orders?status=suggested">
+    <span class="kpi-label">Aguardando aprovação</span>
+    <span class="kpi-value">{{ ov.awaiting_approval }}</span>
+  </a>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2>Saídas nos últimos 30 dias</h2>
+  </div>
+  <div class="chart-box"><canvas id="sales-chart" aria-label="Saídas por dia" role="img"></canvas></div>
+  <script id="sales-data" type="application/json">{{ chart | tojson }}</script>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2>Itens</h2>
+    <input class="search" type="search" name="q" placeholder="Buscar por nome ou SKU"
+           hx-get="/products/table" hx-trigger="input changed delay:300ms, search"
+           hx-target="#product-table" hx-swap="outerHTML" aria-label="Buscar itens">
+  </div>
+  {% include "_product_table.html" %}
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/chart.js" defer></script>
+{% endblock %}

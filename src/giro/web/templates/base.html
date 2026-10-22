@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Giro{% endblock %} · Giro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark">↻</span> Giro</a>
+    <nav>
+      <a href="/" {% if nav == "overview" %}aria-current="page"{% endif %}>Visão geral</a>
+      <a href="/movements/new" {% if nav == "movements" %}aria-current="page"{% endif %}>Registrar</a>
+      <a href="/orders" {% if nav == "orders" %}aria-current="page"{% endif %}>Pedidos</a>
+      <a href="/products" {% if nav == "products" %}aria-current="page"{% endif %}>Produtos</a>
+      <a href="/suppliers" {% if nav == "suppliers" %}aria-current="page"{% endif %}>Fornecedores</a>
+    </nav>
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
