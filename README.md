@@ -73,6 +73,7 @@ Design e plano de implementação: [docs/superpowers/specs](docs/superpowers/spe
 ## Limitações do MVP
 
 - **Sem login nas telas.** Não exponha a porta 8000 à internet sem colocar autenticação (ou um proxy com autenticação) na frente.
+- Postgres (5432) e n8n (5678) só aceitam conexões desta máquina (`127.0.0.1`). O dashboard (8000) fica acessível na rede local, então vale a mesma ressalva de login acima.
 - Um fornecedor por produto, uma loja.
 - Previsão por média móvel simples (sem sazonalidade).
 

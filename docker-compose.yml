@@ -15,7 +15,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-giro}
       POSTGRES_DB: giro
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # só nesta máquina: senha padrão giro/giro
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/10-n8n.sql:ro
@@ -55,7 +55,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "5678:5678"
+      - "127.0.0.1:5678:5678"  # só nesta máquina: o n8n enxerga os tokens do .env
     entrypoint: ["/bin/sh", "/scripts/n8n-entrypoint.sh"]
     environment:
       <<: *whatsapp-env
