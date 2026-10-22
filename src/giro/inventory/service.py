@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from giro.errors import DuplicateSku, InsufficientStock, InvalidInput, NotFound
@@ -15,7 +16,16 @@ from giro.inventory.schemas import (
     SupplierIn,
     SupplierUpdate,
 )
-from giro.models import MovementKind, Product, StockMovement, Supplier, Unit
+from giro.models import (
+    MovementKind,
+    Product,
+    PurchaseOrder,
+    PurchaseOrderItem,
+    StockMovement,
+    Supplier,
+    Unit,
+)
+from giro.orders.state import OPEN_STATUSES
 
 
 def create_supplier(s: Session, data: SupplierIn) -> Supplier:
@@ -52,8 +62,13 @@ def create_product(s: Session, data: ProductIn) -> Product:
         raise DuplicateSku("SKU já cadastrado.")
     get_supplier(s, data.supplier_id)
     product = Product(**data.model_dump(), current_stock=Decimal(0))
-    s.add(product)
-    s.flush()
+    try:
+        # savepoint: um cadastro concorrente com o mesmo SKU vira erro de domínio, não 500
+        with s.begin_nested():
+            s.add(product)
+            s.flush()
+    except IntegrityError as exc:
+        raise DuplicateSku("SKU já cadastrado.") from exc
     return product
 
 
@@ -69,10 +84,39 @@ def update_product(s: Session, product_id: int, data: ProductUpdate) -> Product:
     changes = data.model_dump(exclude_unset=True, exclude_none=True)
     if "supplier_id" in changes:
         get_supplier(s, changes["supplier_id"])
+    if changes.get("unit", product.unit) is not product.unit:
+        _ensure_unit_change_allowed(s, product, changes["unit"])
     for key, value in changes.items():
         setattr(product, key, value)
     s.flush()
     return product
+
+
+def _is_integral(value: Decimal) -> bool:
+    return value == value.to_integral_value()
+
+
+def _ensure_unit_change_allowed(s: Session, product: Product, unit: Unit) -> None:
+    """Mudar para un/cx com saldo fracionado deixaria um resto impossível de vender ou ajustar."""
+    if unit is Unit.KG:
+        return
+    if not _is_integral(product.current_stock):
+        raise InvalidInput(
+            f"Não é possível mudar para {unit.value}: o estoque atual está fracionado "
+            f"({br_number(product.current_stock)}). Faça um ajuste antes."
+        )
+    open_quantities = s.scalars(
+        select(PurchaseOrderItem.quantity)
+        .join(PurchaseOrder)
+        .where(
+            PurchaseOrderItem.product_id == product.id,
+            PurchaseOrder.status.in_(OPEN_STATUSES),
+        )
+    )
+    if any(not _is_integral(q) for q in open_quantities):
+        raise InvalidInput(
+            f"Não é possível mudar para {unit.value}: há quantidade fracionada em pedido em aberto."
+        )
 
 
 def list_products(s: Session, *, include_inactive: bool = False) -> list[Product]:
