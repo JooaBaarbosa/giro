@@ -204,8 +204,10 @@ def claim(s: Session, order_id: int, *, now: datetime) -> PurchaseOrder:
     )
     if claimed is None:
         order = _lock_order(s, order_id)
+        if order.status is OrderStatus.SENDING:
+            raise InvalidTransition("Pedido já está sendo enviado.")
         ensure_transition(order.status, OrderStatus.SENDING)
-        raise InvalidTransition("Pedido já está sendo enviado.")
+        raise InvalidTransition("Pedido já está sendo enviado.")  # aprovado após a corrida
     order = s.execute(
         select(PurchaseOrder)
         .where(PurchaseOrder.id == order_id)

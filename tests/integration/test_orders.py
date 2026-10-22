@@ -305,3 +305,12 @@ def test_record_owner_alert_failure(session, two_suppliers):
         session, order.id, OwnerAlertIn(dry_run=False, error="token expirado"), now=NOW
     )
     assert order.owner_alert_error == "token expirado"
+
+
+def test_claim_while_sending_has_clear_message(session, two_suppliers):
+    order = suggested(session)
+    approve(session, order.id, now=NOW)
+    claim(session, order.id, now=NOW)
+    with pytest.raises(InvalidTransition) as e:
+        claim(session, order.id, now=NOW)
+    assert e.value.message == "Pedido já está sendo enviado."

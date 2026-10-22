@@ -42,3 +42,8 @@ def test_wf1_always_records_owner_alert():
     wf = _wf("wf1-verificar-estoque.json")
     urls = [n["parameters"].get("url", "") for n in wf["nodes"]]
     assert sum("/owner-alert" in u for u in urls) == 2  # dry-run e envio real
+
+
+def test_wf1_suggest_failure_does_not_block_recovery_branch():
+    nodes = {n["name"]: n for n in _wf("wf1-verificar-estoque.json")["nodes"]}
+    assert nodes["Sugerir pedidos"].get("onError") == "continueRegularOutput"
