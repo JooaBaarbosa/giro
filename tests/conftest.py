@@ -89,3 +89,37 @@ def make_product(
         return product
 
     return factory
+
+
+TEST_SETTINGS = {
+    "service_token": "test-token",
+    "app_base_url": "http://testserver",
+    "store_name": "Loja Teste",
+    "n8n_webhook_url": "http://n8n.invalid/webhook",
+}
+
+
+@pytest.fixture
+def settings(database_url: str) -> Any:
+    from giro.config import Settings
+
+    return Settings(database_url=database_url, **TEST_SETTINGS)
+
+
+@pytest.fixture
+def client(session: Session, settings: Any) -> Iterator[Any]:
+    from fastapi.testclient import TestClient
+
+    from giro.db import get_session
+    from giro.main import create_app
+
+    app = create_app()
+    app.dependency_overrides[get_session] = lambda: session
+    app.dependency_overrides[get_settings] = lambda: settings
+    with TestClient(app) as c:
+        yield c
+
+
+@pytest.fixture
+def auth() -> dict[str, str]:
+    return {"X-Service-Token": "test-token"}

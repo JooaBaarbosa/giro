@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Self
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from giro.models import MovementKind, Unit
 
@@ -74,3 +74,38 @@ class MovementIn(BaseModel):
         if self.occurred_at is not None and self.occurred_at.tzinfo is None:
             raise ValueError("Data/hora deve ter fuso horário.")
         return self
+
+
+class SupplierOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    whatsapp: str
+    active: bool
+
+
+class ProductOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    sku: str
+    name: str
+    unit: Unit
+    supplier_id: int
+    min_stock: Decimal
+    cover_days: int
+    current_stock: Decimal
+    active: bool
+
+
+class MovementOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    product_id: int
+    kind: MovementKind
+    quantity: Decimal
+    occurred_at: datetime
+    note: str | None
+    purchase_order_id: int | None
