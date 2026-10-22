@@ -38,6 +38,9 @@ class OrderOut(BaseModel):
     claimed_at: datetime | None
     sent_at: datetime | None
     received_at: datetime | None
+    owner_alerted_at: datetime | None
+    owner_alert_dry_run: bool | None
+    owner_alert_error: str | None
     link: str
 
 
@@ -53,6 +56,11 @@ class SentIn(BaseModel):
 
 class FailedIn(BaseModel):
     error: Annotated[str, Field(min_length=1)]
+
+
+class OwnerAlertIn(BaseModel):
+    dry_run: bool
+    error: str | None = None
 
 
 class ItemQtyIn(BaseModel):

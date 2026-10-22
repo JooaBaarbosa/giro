@@ -11,7 +11,7 @@ from giro.config import Settings
 from giro.errors import EmptyOrder, InvalidInput, InvalidTransition
 from giro.inventory.service import list_movements
 from giro.models import OrderStatus, PurchaseOrder, Unit
-from giro.orders.schemas import FailedIn, ItemQtyIn, SentIn
+from giro.orders.schemas import FailedIn, ItemQtyIn, OwnerAlertIn, SentIn
 from giro.orders.service import (
     TIMEOUT_ERROR,
     approve,
@@ -21,6 +21,7 @@ from giro.orders.service import (
     mark_failed,
     mark_sent,
     receive,
+    record_owner_alert,
     remove_item,
     retry,
     set_item_quantity,
@@ -286,3 +287,21 @@ def test_concurrent_approve_only_one_wins(engine, session, two_suppliers):
     session.commit()
     results = _race(engine, [lambda s: approve(s, order.id, now=NOW)] * 2)
     assert results == ["conflict", "ok"]
+
+
+def test_record_owner_alert(session, two_suppliers):
+    order = suggested(session)
+    record_owner_alert(session, order.id, OwnerAlertIn(dry_run=True), now=NOW)
+    assert order.owner_alerted_at == NOW
+    assert order.owner_alert_dry_run is True
+    assert order.owner_alert_error is None
+    out = to_out(order, settings=SETTINGS)
+    assert out.owner_alerted_at == NOW and out.owner_alert_dry_run is True
+
+
+def test_record_owner_alert_failure(session, two_suppliers):
+    order = suggested(session)
+    record_owner_alert(
+        session, order.id, OwnerAlertIn(dry_run=False, error="token expirado"), now=NOW
+    )
+    assert order.owner_alert_error == "token expirado"

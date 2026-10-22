@@ -28,6 +28,7 @@ from giro.orders.message import (
 )
 from giro.orders.schemas import (
     FailedIn,
+    OwnerAlertIn,
     OrderItemOut,
     OrderOut,
     SentIn,
@@ -260,6 +261,19 @@ def receive(s: Session, order_id: int, *, now: datetime) -> PurchaseOrder:
     return order
 
 
+def record_owner_alert(
+    s: Session, order_id: int, data: OwnerAlertIn, *, now: datetime
+) -> PurchaseOrder:
+    """Registra que o n8n avisou (ou simulou avisar) o dono sobre este pedido sugerido."""
+    order = _lock_order(s, order_id)
+    order.owner_alerted_at = now
+    order.owner_alert_dry_run = data.dry_run
+    order.owner_alert_error = data.error[:MAX_ERROR_LEN] if data.error else None
+    s.flush()
+    log.info("alerta ao dono registrado", extra={"order_id": order.id, "dry_run": data.dry_run})
+    return order
+
+
 def _items_line(order: PurchaseOrder) -> str:
     return format_items_line([(i.product.name, i.quantity, i.product.unit) for i in order.items])
 
@@ -300,6 +314,9 @@ def to_out(order: PurchaseOrder, *, settings: Settings) -> OrderOut:
         claimed_at=order.claimed_at,
         sent_at=order.sent_at,
         received_at=order.received_at,
+        owner_alerted_at=order.owner_alerted_at,
+        owner_alert_dry_run=order.owner_alert_dry_run,
+        owner_alert_error=order.owner_alert_error,
         link=f"{settings.app_base_url.rstrip('/')}/orders/{order.id}",
     )
 

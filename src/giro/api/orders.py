@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from giro.api.deps import NowDep, SessionDep, SettingsDep, require_service_token
 from giro.models import OrderStatus
 from giro.orders import service
-from giro.orders.schemas import FailedIn, OrderOut, SentIn, SuggestedOrderOut
+from giro.orders.schemas import FailedIn, OrderOut, OwnerAlertIn, SentIn, SuggestedOrderOut
 
 router = APIRouter(prefix="/api/purchase-orders", dependencies=[Depends(require_service_token)])
 
@@ -46,5 +46,14 @@ def sent(
 @router.post("/{order_id}/failed", response_model=OrderOut)
 def failed(order_id: int, data: FailedIn, s: SessionDep, settings: SettingsDep) -> OrderOut:
     order = service.mark_failed(s, order_id, data)
+    s.commit()
+    return service.to_out(order, settings=settings)
+
+
+@router.post("/{order_id}/owner-alert", response_model=OrderOut)
+def owner_alert(
+    order_id: int, data: OwnerAlertIn, s: SessionDep, settings: SettingsDep, now: NowDep
+) -> OrderOut:
+    order = service.record_owner_alert(s, order_id, data, now=now)
     s.commit()
     return service.to_out(order, settings=settings)

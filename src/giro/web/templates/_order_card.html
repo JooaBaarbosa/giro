@@ -13,6 +13,12 @@
   </div>
 
   {% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
+  {% if o.owner_alerted_at %}
+  <p class="order-meta">
+    {% if o.owner_alert_error %}Falha ao avisar o dono no WhatsApp: {{ o.owner_alert_error }}
+    {% else %}Dono avisado no WhatsApp{% if o.owner_alert_dry_run %} (simulado){% endif %} em {{ o.owner_alerted_at | localdt }}{% endif %}
+  </p>
+  {% endif %}
 
   <div class="table-wrap">
     <table>

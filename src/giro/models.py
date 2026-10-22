@@ -114,6 +114,9 @@ class PurchaseOrder(Base):
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    owner_alerted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    owner_alert_dry_run: Mapped[bool | None] = mapped_column()
+    owner_alert_error: Mapped[str | None] = mapped_column(String(2000))
 
     supplier: Mapped[Supplier] = relationship()
     items: Mapped[list[PurchaseOrderItem]] = relationship(

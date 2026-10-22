@@ -69,3 +69,14 @@ def test_failed_callback(client, auth, approved_order):
 
 def test_unknown_order_404(client, auth):
     assert client.get("/api/purchase-orders/999", headers=auth).status_code == 404
+
+
+def test_owner_alert_callback(client, auth, approved_order):
+    r = client.post(
+        f"/api/purchase-orders/{approved_order.id}/owner-alert",
+        headers=auth,
+        json={"dry_run": True},
+    )
+    assert r.status_code == 200
+    assert r.json()["owner_alert_dry_run"] is True
+    assert r.json()["owner_alerted_at"] is not None

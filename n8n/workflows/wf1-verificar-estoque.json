@@ -92,15 +92,6 @@
                 "operation": "exists",
                 "singleValue": true
               }
-            },
-            {
-              "id": "f2",
-              "leftValue": "={{ $env.WHATSAPP_DRY_RUN }}",
-              "rightValue": "false",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
             }
           ],
           "combinator": "and"
@@ -114,10 +105,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        720,
-        -120
+        960,
+        -60
       ],
-      "onError": "continueRegularOutput",
+      "onError": "continueErrorOutput",
       "parameters": {
         "method": "POST",
         "url": "=https://graph.facebook.com/{{ $env.WHATSAPP_GRAPH_VERSION }}/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
@@ -132,7 +123,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $env.OWNER_WHATSAPP.replace(/\\D/g, ''), type: 'template', template: { name: 'alerta_estoque_baixo', language: { code: 'pt_BR' }, components: [{ type: 'body', parameters: $json.alert_params.map(text => ({ type: 'text', text })) }] } }) }}",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $env.OWNER_WHATSAPP.replace(/\\D/g, ''), type: 'template', template: { name: 'alerta_estoque_baixo', language: { code: 'pt_BR' }, components: [{ type: 'body', parameters: $('Pedido novo?').item.json.alert_params.map(text => ({ type: 'text', text })) }] } }) }}",
         "options": {}
       }
     },
@@ -221,6 +212,93 @@
         "jsonBody": "={{ JSON.stringify({ order_id: $json.id }) }}",
         "options": {}
       }
+    },
+    {
+      "id": "b1f0b1c0-0000-4000-8000-000000000009",
+      "name": "Alerta: dry-run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        -120
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c9",
+              "leftValue": "={{ $env.WHATSAPP_DRY_RUN }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b1f0b1c0-0000-4000-8000-00000000000a",
+      "name": "Registrar alerta simulado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        -220
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_URL }}/api/purchase-orders/{{ $('Pedido novo?').item.json.id }}/owner-alert",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Service-Token",
+              "value": "={{ $env.SERVICE_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ dry_run: true }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "b1f0b1c0-0000-4000-8000-00000000000b",
+      "name": "Registrar alerta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        -60
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_URL }}/api/purchase-orders/{{ $('Pedido novo?').item.json.id }}/owner-alert",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Service-Token",
+              "value": "={{ $env.SERVICE_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ dry_run: false, error: $json.error ? String([$json.error.message, $json.error.description].filter(Boolean).join(' — ')).slice(0, 1900) : null }) }}",
+        "options": {}
+      }
     }
   ],
   "connections": {
@@ -255,7 +333,7 @@
       "main": [
         [
           {
-            "node": "WhatsApp: alerta_estoque_baixo",
+            "node": "Alerta: dry-run?",
             "type": "main",
             "index": 0
           }
@@ -294,6 +372,42 @@
           },
           {
             "node": "Aprovados sem envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerta: dry-run?": {
+      "main": [
+        [
+          {
+            "node": "Registrar alerta simulado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WhatsApp: alerta_estoque_baixo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp: alerta_estoque_baixo": {
+      "main": [
+        [
+          {
+            "node": "Registrar alerta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar alerta",
             "type": "main",
             "index": 0
           }

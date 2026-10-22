@@ -32,3 +32,13 @@ def test_postgres_and_n8n_bound_to_localhost_only():
     for mapping in ports:
         if mapping.endswith((":5432", ":5678")):
             assert mapping.startswith("127.0.0.1:"), mapping
+
+
+def _wf(name: str) -> dict:
+    return json.loads((ROOT / "n8n" / "workflows" / name).read_text(encoding="utf-8"))
+
+
+def test_wf1_always_records_owner_alert():
+    wf = _wf("wf1-verificar-estoque.json")
+    urls = [n["parameters"].get("url", "") for n in wf["nodes"]]
+    assert sum("/owner-alert" in u for u in urls) == 2  # dry-run e envio real

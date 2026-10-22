@@ -96,3 +96,13 @@ def test_order_times_in_store_timezone(client, session, sent_dry_run_order, noti
     session.commit()
     html = client.get(f"/orders/{sent_dry_run_order.id}").text
     assert "21/10 23:30" in html
+
+
+def test_card_shows_simulated_owner_alert(client, session, suggested_order, notified):
+    from datetime import UTC, datetime
+
+    suggested_order.owner_alerted_at = datetime(2026, 10, 22, 17, 5, tzinfo=UTC)
+    suggested_order.owner_alert_dry_run = True
+    session.commit()
+    html = client.get(f"/orders/{suggested_order.id}").text
+    assert "Dono avisado no WhatsApp (simulado) em 22/10 14:05" in html
