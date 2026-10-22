@@ -5,7 +5,7 @@
       <h2><a href="/orders/{{ o.id }}">Pedido #{{ o.id }}</a> · {{ o.supplier.name }}</h2>
       <p class="order-meta">
         {{ ORDER_STATUS_LABELS[o.status] | capitalize }}
-        {% if o.created_at %}· criado em {{ o.created_at.strftime("%d/%m %H:%M") }}{% endif %}
+        {% if o.created_at %}· criado em {{ o.created_at | localdt }}{% endif %}
         · {{ o.supplier.whatsapp }}
       </p>
     </div>
@@ -50,7 +50,7 @@
     <p class="muted" style="margin-top:12px">Prévia da mensagem ao fornecedor:</p>
     <p class="message">{{ o.message_preview }}</p>
   {% elif o.status.value in ("sent", "received") and o.message_text %}
-    <p class="muted" style="margin-top:12px">Mensagem {% if o.dry_run %}simulada (dry-run){% else %}enviada{% endif %}{% if o.sent_at %} em {{ o.sent_at.strftime("%d/%m %H:%M") }}{% endif %}:</p>
+    <p class="muted" style="margin-top:12px">Mensagem {% if o.dry_run %}simulada (dry-run){% else %}enviada{% endif %}{% if o.sent_at %} em {{ o.sent_at | localdt }}{% endif %}:</p>
     <p class="message">{{ o.message_text }}</p>
   {% endif %}
 
@@ -62,7 +62,7 @@
   {% elif o.status.value == "failed" %}
     <p class="flash flash-error" style="margin-top:12px">Falha no envio: {{ o.error }}</p>
   {% elif o.status.value == "received" %}
-    <p class="flash flash-ok" style="margin-top:12px">Recebido{% if o.received_at %} em {{ o.received_at.strftime("%d/%m %H:%M") }}{% endif %}. Estoque atualizado.</p>
+    <p class="flash flash-ok" style="margin-top:12px">Recebido{% if o.received_at %} em {{ o.received_at | localdt }}{% endif %}. Estoque atualizado.</p>
   {% elif o.status.value == "cancelled" %}
     <p class="muted" style="margin-top:12px">Cancelado.</p>
   {% endif %}

@@ -1,7 +1,8 @@
 """Jinja: filtros pt-BR, rótulos e helpers de formulário compartilhados pelas telas."""
 
 import math
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
+from giro.config import get_settings
 from giro.forecast import Forecast
 from giro.models import MovementKind, Unit
 from giro.orders.message import format_qty
@@ -44,6 +46,13 @@ def brdate(value: date | None) -> str:
     return "—" if value is None else value.strftime("%d/%m")
 
 
+def localdt(value: datetime | None, fmt: str = "%d/%m %H:%M") -> str:
+    """Converte timestamptz (vem do banco em UTC) para o fuso da loja antes de formatar."""
+    if value is None:
+        return "—"
+    return value.astimezone(ZoneInfo(get_settings().store_tz)).strftime(fmt)
+
+
 def days(value: Decimal | None) -> str:
     if value is None:
         return "—"
@@ -58,7 +67,7 @@ def next_purchase_label(forecast: Forecast, today: date) -> str:
     return brdate(forecast.next_purchase)
 
 
-templates.env.filters.update(qty=qty, qty1=qty1, brdate=brdate, days=days)
+templates.env.filters.update(qty=qty, qty1=qty1, brdate=brdate, days=days, localdt=localdt)
 templates.env.globals.update(
     STATUS_LABELS=STATUS_LABELS,
     KIND_LABELS=KIND_LABELS,

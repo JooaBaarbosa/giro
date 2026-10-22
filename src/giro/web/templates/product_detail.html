@@ -46,7 +46,7 @@
         <tbody>
           {% for m in movements %}
           <tr>
-            <td>{{ m.occurred_at.strftime("%d/%m %H:%M") }}</td>
+            <td>{{ m.occurred_at | localdt }}</td>
             <td>{{ KIND_LABELS[m.kind] }}</td>
             <td class="num">{{ m.quantity | qty(product.unit) }}</td>
             <td>{{ m.note or "" }}</td>

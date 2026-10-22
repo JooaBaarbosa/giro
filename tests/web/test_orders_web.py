@@ -87,3 +87,12 @@ def test_cancel(client, session, suggested_order, notified):
 
 def test_orders_empty_state(client):
     assert "Nenhum pedido" in client.get("/orders").text
+
+
+def test_order_times_in_store_timezone(client, session, sent_dry_run_order, notified):
+    from datetime import UTC, datetime
+
+    sent_dry_run_order.sent_at = datetime(2026, 10, 22, 2, 30, tzinfo=UTC)
+    session.commit()
+    html = client.get(f"/orders/{sent_dry_run_order.id}").text
+    assert "21/10 23:30" in html

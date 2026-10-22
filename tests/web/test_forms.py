@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -129,3 +130,19 @@ def test_edit_min_stock(client, session, make_product):
 
 def test_unknown_product_404(client):
     assert client.get("/products/999").status_code == 404
+
+
+def test_history_shows_store_local_time(client, session, make_product):
+    p = make_product(name="Leite", current_stock=Decimal(10))
+    record_movement(
+        session,
+        MovementIn(
+            product_id=p.id,
+            kind="sale",
+            quantity=Decimal(1),
+            occurred_at=datetime(2026, 10, 22, 2, 30, tzinfo=UTC),  # 21/10 23:30 em SP
+        ),
+    )
+    html = client.get(f"/products/{p.id}").text
+    assert "21/10 23:30" in html
+    assert "22/10 02:30" not in html
