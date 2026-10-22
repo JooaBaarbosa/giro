@@ -52,6 +52,20 @@ def get_order(s: Session, order_id: int) -> PurchaseOrder:
     return order
 
 
+def _lock_order(s: Session, order_id: int) -> PurchaseOrder:
+    """Lê o pedido com SELECT ... FOR UPDATE: transições concorrentes esperam a outra terminar
+    e reavaliam o status (evita recebimento em dobro e cancelamento sobrescrito pelo envio)."""
+    order = s.execute(
+        select(PurchaseOrder)
+        .where(PurchaseOrder.id == order_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).scalar_one_or_none()
+    if order is None:
+        raise NotFound("Pedido não encontrado.")
+    return order
+
+
 def list_orders(s: Session, status: OrderStatus | None = None) -> list[PurchaseOrder]:
     stmt = select(PurchaseOrder).order_by(PurchaseOrder.created_at.desc(), PurchaseOrder.id.desc())
     if status is not None:
@@ -126,7 +140,7 @@ def _ensure_editable(order: PurchaseOrder) -> None:
 
 
 def set_item_quantity(s: Session, order_id: int, item_id: int, quantity: Decimal) -> PurchaseOrder:
-    order = get_order(s, order_id)
+    order = _lock_order(s, order_id)
     _ensure_editable(order)
     item = _get_item(order, item_id)
     if quantity <= 0:
@@ -138,7 +152,7 @@ def set_item_quantity(s: Session, order_id: int, item_id: int, quantity: Decimal
 
 
 def remove_item(s: Session, order_id: int, item_id: int) -> PurchaseOrder:
-    order = get_order(s, order_id)
+    order = _lock_order(s, order_id)
     _ensure_editable(order)
     order.items.remove(_get_item(order, item_id))
     s.flush()
@@ -146,7 +160,7 @@ def remove_item(s: Session, order_id: int, item_id: int) -> PurchaseOrder:
 
 
 def approve(s: Session, order_id: int, *, now: datetime) -> PurchaseOrder:
-    order = get_order(s, order_id)
+    order = _lock_order(s, order_id)
     ensure_transition(order.status, OrderStatus.APPROVED)
     if not order.items:
         raise EmptyOrder("Pedido sem itens não pode ser aprovado.")
@@ -158,7 +172,7 @@ def approve(s: Session, order_id: int, *, now: datetime) -> PurchaseOrder:
 
 
 def cancel(s: Session, order_id: int) -> PurchaseOrder:
-    order = get_order(s, order_id)
+    order = _lock_order(s, order_id)
     ensure_transition(order.status, OrderStatus.CANCELLED)
     order.status = OrderStatus.CANCELLED
     s.flush()
@@ -167,7 +181,7 @@ def cancel(s: Session, order_id: int) -> PurchaseOrder:
 
 
 def retry(s: Session, order_id: int, *, now: datetime) -> PurchaseOrder:
-    order = get_order(s, order_id)
+    order = _lock_order(s, order_id)
     if order.status is not OrderStatus.FAILED:
         raise InvalidTransition("Só pedidos que falharam podem ser reenviados.")
     order.status = OrderStatus.APPROVED
@@ -188,7 +202,7 @@ def claim(s: Session, order_id: int, *, now: datetime) -> PurchaseOrder:
         .returning(PurchaseOrder.id)
     )
     if claimed is None:
-        order = get_order(s, order_id)
+        order = _lock_order(s, order_id)
         ensure_transition(order.status, OrderStatus.SENDING)
         raise InvalidTransition("Pedido já está sendo enviado.")
     order = s.execute(
@@ -201,7 +215,7 @@ def claim(s: Session, order_id: int, *, now: datetime) -> PurchaseOrder:
 
 
 def mark_sent(s: Session, order_id: int, data: SentIn, *, now: datetime) -> PurchaseOrder:
-    order = get_order(s, order_id)
+    order = _lock_order(s, order_id)
     ensure_transition(order.status, OrderStatus.SENT)
     order.status = OrderStatus.SENT
     order.message_text = data.message_text
@@ -215,7 +229,7 @@ def mark_sent(s: Session, order_id: int, data: SentIn, *, now: datetime) -> Purc
 
 
 def mark_failed(s: Session, order_id: int, data: FailedIn) -> PurchaseOrder:
-    order = get_order(s, order_id)
+    order = _lock_order(s, order_id)
     ensure_transition(order.status, OrderStatus.FAILED)
     order.status = OrderStatus.FAILED
     order.error = data.error[:MAX_ERROR_LEN]
@@ -225,7 +239,7 @@ def mark_failed(s: Session, order_id: int, data: FailedIn) -> PurchaseOrder:
 
 
 def receive(s: Session, order_id: int, *, now: datetime) -> PurchaseOrder:
-    order = get_order(s, order_id)
+    order = _lock_order(s, order_id)
     ensure_transition(order.status, OrderStatus.RECEIVED)
     for item in order.items:
         record_movement(

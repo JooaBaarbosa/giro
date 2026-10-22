@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+import sqlalchemy as sa
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -216,3 +217,72 @@ def test_retry_only_from_failed(session, two_suppliers):
     order = suggested(session)
     with pytest.raises(InvalidTransition, match="falharam"):
         retry(session, order.id, now=NOW)
+
+
+def _race(engine, fns) -> list[str]:
+    """Roda as funções em paralelo, cada uma com sua sessão, e devolve ok/conflict."""
+    barrier = threading.Barrier(len(fns))
+    results: list[str] = []
+
+    def worker(fn) -> None:
+        with Session(engine) as s:
+            barrier.wait()
+            try:
+                fn(s)
+                s.commit()
+                results.append("ok")
+            except InvalidTransition:
+                s.rollback()
+                results.append("conflict")
+
+    threads = [threading.Thread(target=worker, args=(fn,)) for fn in fns]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    return sorted(results)
+
+
+def test_concurrent_receive_adds_stock_once(engine, session, two_suppliers):
+    order = suggested(session)
+    approve(session, order.id, now=NOW)
+    claim(session, order.id, now=NOW)
+    mark_sent(session, order.id, SentIn(message_text="m", dry_run=True), now=NOW)
+    session.commit()
+    item = order.items[0]
+    before = item.product.current_stock
+
+    results = _race(engine, [lambda s: receive(s, order.id, now=NOW)] * 2)
+
+    assert results == ["conflict", "ok"]
+    session.expire_all()
+    assert get_order(session, order.id).items[0].product.current_stock == before + item.quantity
+
+
+def test_cancel_racing_claim_never_both_win(engine, session, two_suppliers):
+    order = suggested(session)
+    approve(session, order.id, now=NOW)
+    session.commit()
+
+    for _ in range(5):
+        results = _race(
+            engine, [lambda s: cancel(s, order.id), lambda s: claim(s, order.id, now=NOW)]
+        )
+        assert results == ["conflict", "ok"]
+        session.expire_all()
+        status = get_order(session, order.id).status
+        assert status in (OrderStatus.CANCELLED, OrderStatus.SENDING)
+        # volta ao estado inicial para repetir a corrida
+        session.execute(
+            sa.update(PurchaseOrder)
+            .where(PurchaseOrder.id == order.id)
+            .values(status=OrderStatus.APPROVED)
+        )
+        session.commit()
+
+
+def test_concurrent_approve_only_one_wins(engine, session, two_suppliers):
+    order = suggested(session)
+    session.commit()
+    results = _race(engine, [lambda s: approve(s, order.id, now=NOW)] * 2)
+    assert results == ["conflict", "ok"]
