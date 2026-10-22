@@ -28,9 +28,9 @@ from giro.orders.message import (
 )
 from giro.orders.schemas import (
     FailedIn,
-    OwnerAlertIn,
     OrderItemOut,
     OrderOut,
+    OwnerAlertIn,
     SentIn,
     SuggestedOrderOut,
     SupplierRef,

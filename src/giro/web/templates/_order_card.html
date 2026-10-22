@@ -84,7 +84,7 @@
       <button class="btn btn-primary" hx-post="/orders/{{ o.id }}/receive" hx-target="{{ target }}" hx-swap="outerHTML" hx-disabled-elt="this">Marcar recebido</button>
     {% endif %}
     {% if o.status.value in ("suggested", "approved", "failed") %}
-      <button class="btn btn-danger" hx-post="/orders/{{ o.id }}/cancel" hx-target="{{ target }}" hx-swap="outerHTML" hx-disabled-elt="this">Cancelar</button>
+      <button class="btn btn-danger" hx-post="/orders/{{ o.id }}/cancel" hx-confirm="Cancelar o pedido #{{ o.id }}?" hx-target="{{ target }}" hx-swap="outerHTML" hx-disabled-elt="this">Cancelar</button>
     {% endif %}
   </div>
 </article>
