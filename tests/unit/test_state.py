@@ -40,10 +40,10 @@ def test_message_in_portuguese():
 
 
 def test_open_statuses():
-    assert OPEN_STATUSES == {
+    assert {
         OrderStatus.SUGGESTED,
         OrderStatus.APPROVED,
         OrderStatus.SENDING,
         OrderStatus.SENT,
         OrderStatus.FAILED,
-    }
+    } == OPEN_STATUSES

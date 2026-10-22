@@ -9,14 +9,22 @@ def test_requires_token(client):
 
 
 def test_create_supplier_and_product(client, auth):
-    r = client.post("/api/suppliers", headers=auth, json={"name": "Dist", "whatsapp": "+55 11 98765-4321"})
+    r = client.post(
+        "/api/suppliers", headers=auth, json={"name": "Dist", "whatsapp": "+55 11 98765-4321"}
+    )
     assert r.status_code == 201
     sup = r.json()
     assert sup["whatsapp"] == "+5511987654321"
     r = client.post(
         "/api/products",
         headers=auth,
-        json={"sku": "A1", "name": "Arroz", "unit": "un", "supplier_id": sup["id"], "min_stock": "5"},
+        json={
+            "sku": "A1",
+            "name": "Arroz",
+            "unit": "un",
+            "supplier_id": sup["id"],
+            "min_stock": "5",
+        },
     )
     assert r.status_code == 201
     assert Decimal(r.json()["current_stock"]) == 0
@@ -28,7 +36,13 @@ def test_duplicate_sku_is_422(client, auth, make_product):
     r = client.post(
         "/api/products",
         headers=auth,
-        json={"sku": "DUP", "name": "X", "unit": "un", "supplier_id": p.supplier_id, "min_stock": "1"},
+        json={
+            "sku": "DUP",
+            "name": "X",
+            "unit": "un",
+            "supplier_id": p.supplier_id,
+            "min_stock": "1",
+        },
     )
     assert r.status_code == 422
     assert r.json()["detail"] == "SKU já cadastrado."
@@ -41,7 +55,9 @@ def test_invalid_phone_is_422(client, auth):
 
 def test_movement_created(client, auth, make_product):
     p = make_product(current_stock=Decimal(5))
-    r = client.post("/api/movements", headers=auth, json={"product_id": p.id, "kind": "sale", "quantity": "2"})
+    r = client.post(
+        "/api/movements", headers=auth, json={"product_id": p.id, "kind": "sale", "quantity": "2"}
+    )
     assert r.status_code == 201
     assert r.json()["kind"] == "sale"
     movs = client.get(f"/api/products/{p.id}/movements", headers=auth).json()
@@ -50,7 +66,9 @@ def test_movement_created(client, auth, make_product):
 
 def test_movement_insufficient_is_409(client, auth, make_product):
     p = make_product(current_stock=Decimal(1))
-    r = client.post("/api/movements", headers=auth, json={"product_id": p.id, "kind": "sale", "quantity": "2"})
+    r = client.post(
+        "/api/movements", headers=auth, json={"product_id": p.id, "kind": "sale", "quantity": "2"}
+    )
     assert r.status_code == 409
     assert r.json()["detail"].startswith("Estoque insuficiente")
 

@@ -40,7 +40,9 @@ def _to_sending(session, order):
 @pytest.fixture
 def sent_order(session, suggested_order):
     _to_sending(session, suggested_order)
-    mark_sent(session, suggested_order.id, SentIn(message_text="Olá Dist A", dry_run=False), now=NOW)
+    mark_sent(
+        session, suggested_order.id, SentIn(message_text="Olá Dist A", dry_run=False), now=NOW
+    )
     session.commit()
     return suggested_order
 
@@ -49,7 +51,10 @@ def sent_order(session, suggested_order):
 def sent_dry_run_order(session, suggested_order):
     _to_sending(session, suggested_order)
     mark_sent(
-        session, suggested_order.id, SentIn(message_text="Olá Dist A (teste)", dry_run=True), now=NOW
+        session,
+        suggested_order.id,
+        SentIn(message_text="Olá Dist A (teste)", dry_run=True),
+        now=NOW,
     )
     session.commit()
     return suggested_order

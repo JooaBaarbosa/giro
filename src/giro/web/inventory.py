@@ -248,14 +248,26 @@ def product_update(
     except ValidationError as exc:
         s.rollback()
         return _product_detail(
-            request, s, settings, now, product_id,
-            form=form, errors=form_errors(exc), status_code=422,
+            request,
+            s,
+            settings,
+            now,
+            product_id,
+            form=form,
+            errors=form_errors(exc),
+            status_code=422,
         )
     except DomainError as exc:
         s.rollback()
         return _product_detail(
-            request, s, settings, now, product_id,
-            form=form, errors={"__all__": exc.message}, status_code=422,
+            request,
+            s,
+            settings,
+            now,
+            product_id,
+            form=form,
+            errors={"__all__": exc.message},
+            status_code=422,
         )
     return _see_other(f"/products/{product_id}")
 

@@ -50,3 +50,6 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 strict = true
 plugins = ["pydantic.mypy"]
 files = ["src"]
+
+[tool.ruff.format]
+exclude = ["*.md"]

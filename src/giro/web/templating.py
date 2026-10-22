@@ -1,4 +1,4 @@
-"""Jinja: filtros de formatação pt-BR, rótulos e helpers de formulário compartilhados pelas telas."""
+"""Jinja: filtros pt-BR, rótulos e helpers de formulário compartilhados pelas telas."""
 
 import math
 from datetime import date

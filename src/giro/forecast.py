@@ -52,9 +52,7 @@ def compute_forecast(
     next_purchase: date | None = None
     if not no_forecast:
         days_left = (current_stock - min_stock) / avg_daily
-        next_purchase = (
-            today if days_left <= 0 else today + timedelta(days=math.floor(days_left))
-        )
+        next_purchase = today if days_left <= 0 else today + timedelta(days=math.floor(days_left))
 
     raw = avg_daily * cover_days + min_stock - current_stock
     return Forecast(

@@ -69,8 +69,12 @@ def test_create_supplier_and_product_via_forms(client, session):
     r = client.post(
         "/products",
         data={
-            "sku": "ARR5", "name": "Arroz 5kg", "unit": "un",
-            "supplier_id": supplier.id, "min_stock": "10", "cover_days": "15",
+            "sku": "ARR5",
+            "name": "Arroz 5kg",
+            "unit": "un",
+            "supplier_id": supplier.id,
+            "min_stock": "10",
+            "cover_days": "15",
         },
     )
     assert r.status_code == 200
@@ -82,8 +86,14 @@ def test_create_product_duplicate_sku(client, make_product):
     p = make_product(sku="DUP")
     r = client.post(
         "/products",
-        data={"sku": "DUP", "name": "X", "unit": "un", "supplier_id": p.supplier_id,
-              "min_stock": "1", "cover_days": "15"},
+        data={
+            "sku": "DUP",
+            "name": "X",
+            "unit": "un",
+            "supplier_id": p.supplier_id,
+            "min_stock": "1",
+            "cover_days": "15",
+        },
     )
     assert "SKU já cadastrado." in r.text
 
@@ -104,8 +114,13 @@ def test_edit_min_stock(client, session, make_product):
     p = make_product(min_stock=Decimal(10))
     r = client.post(
         f"/products/{p.id}",
-        data={"name": p.name, "supplier_id": p.supplier_id, "min_stock": "20",
-              "cover_days": "15", "active": "on"},
+        data={
+            "name": p.name,
+            "supplier_id": p.supplier_id,
+            "min_stock": "20",
+            "cover_days": "15",
+            "active": "on",
+        },
     )
     assert r.status_code == 200
     session.refresh(p)

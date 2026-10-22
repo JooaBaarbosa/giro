@@ -28,7 +28,9 @@ def test_overview_shows_next_purchase_date(client, session, make_product):
         record_movement(
             session,
             MovementIn(
-                product_id=p.id, kind="sale", quantity=Decimal(3),
+                product_id=p.id,
+                kind="sale",
+                quantity=Decimal(3),
                 occurred_at=now - timedelta(days=d),
             ),
         )

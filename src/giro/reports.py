@@ -67,9 +67,7 @@ def _sales_by_day(
     return result
 
 
-def _first_sales(
-    s: Session, *, tz: str, product_ids: Collection[int] | None
-) -> dict[int, date]:
+def _first_sales(s: Session, *, tz: str, product_ids: Collection[int] | None) -> dict[int, date]:
     stmt = (
         select(StockMovement.product_id, func.min(_local_day(tz)))
         .where(StockMovement.kind == MovementKind.SALE)
@@ -138,9 +136,7 @@ def overview(s: Session, *, now: datetime, tz: str, search: str | None = None) -
             ProductRow(
                 product=product,
                 sold_today=by_day.get(today, Decimal(0)),
-                sold_month=sum(
-                    (q for d, q in by_day.items() if d >= month_start), Decimal(0)
-                ),
+                sold_month=sum((q for d, q in by_day.items() if d >= month_start), Decimal(0)),
                 forecast=forecast,
                 status=_status(product, forecast, today),
             )

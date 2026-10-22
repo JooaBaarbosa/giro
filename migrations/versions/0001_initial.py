@@ -93,9 +93,7 @@ def upgrade() -> None:
         _ts("created_at", default_now=True),
         sa.CheckConstraint("kind IN ('sale', 'purchase', 'adjustment')", name="ck_movements_kind"),
     )
-    op.create_index(
-        "ix_movements_product_time", "stock_movements", ["product_id", "occurred_at"]
-    )
+    op.create_index("ix_movements_product_time", "stock_movements", ["product_id", "occurred_at"])
 
 
 def downgrade() -> None:

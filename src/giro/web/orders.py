@@ -167,6 +167,4 @@ def order_item_update(
 def order_item_delete(
     request: Request, order_id: int, item_id: int, s: SessionDep, settings: SettingsDep
 ) -> HTMLResponse:
-    return _act(
-        request, s, settings, order_id, lambda: service.remove_item(s, order_id, item_id)
-    )
+    return _act(request, s, settings, order_id, lambda: service.remove_item(s, order_id, item_id))

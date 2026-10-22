@@ -102,9 +102,7 @@ def suggest_orders(s: Session, *, now: datetime, tz: str) -> list[PurchaseOrder]
     for supplier_id, products in by_supplier.items():
         order = PurchaseOrder(supplier_id=supplier_id, status=OrderStatus.SUGGESTED)
         order.items = [
-            PurchaseOrderItem(
-                product=p, quantity=forecast_for(s, p, now=now, tz=tz).suggested_qty
-            )
+            PurchaseOrderItem(product=p, quantity=forecast_for(s, p, now=now, tz=tz).suggested_qty)
             for p in products
         ]
         s.add(order)
@@ -127,9 +125,7 @@ def _ensure_editable(order: PurchaseOrder) -> None:
         raise InvalidTransition("Itens só podem ser alterados em pedidos sugeridos.")
 
 
-def set_item_quantity(
-    s: Session, order_id: int, item_id: int, quantity: Decimal
-) -> PurchaseOrder:
+def set_item_quantity(s: Session, order_id: int, item_id: int, quantity: Decimal) -> PurchaseOrder:
     order = get_order(s, order_id)
     _ensure_editable(order)
     item = _get_item(order, item_id)

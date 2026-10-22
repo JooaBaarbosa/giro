@@ -60,9 +60,7 @@ class Supplier(Base):
     name: Mapped[str] = mapped_column(String(120))
     whatsapp: Mapped[str] = mapped_column(String(20))
     active: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Product(Base):
@@ -78,9 +76,7 @@ class Product(Base):
     cover_days: Mapped[int] = mapped_column(default=15)
     current_stock: Mapped[Decimal] = mapped_column(Qty, default=Decimal(0))
     active: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     supplier: Mapped[Supplier] = relationship()
 
@@ -96,9 +92,7 @@ class StockMovement(Base):
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     note: Mapped[str | None] = mapped_column(String(500))
     purchase_order_id: Mapped[int | None] = mapped_column(ForeignKey("purchase_orders.id"))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     product: Mapped[Product] = relationship()
 
@@ -115,16 +109,14 @@ class PurchaseOrder(Base):
     dry_run: Mapped[bool | None] = mapped_column()
     whatsapp_message_id: Mapped[str | None] = mapped_column(String(200))
     error: Mapped[str | None] = mapped_column(String(2000))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     supplier: Mapped[Supplier] = relationship()
-    items: Mapped[list["PurchaseOrderItem"]] = relationship(
+    items: Mapped[list[PurchaseOrderItem]] = relationship(
         back_populates="order",
         cascade="all, delete-orphan",
         order_by="PurchaseOrderItem.id",

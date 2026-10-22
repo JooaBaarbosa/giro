@@ -61,7 +61,9 @@ def test_sent_callback_stores_dry_run(client, auth, approved_order):
 def test_failed_callback(client, auth, approved_order):
     oid = approved_order.id
     client.post(f"/api/purchase-orders/{oid}/claim", headers=auth)
-    r = client.post(f"/api/purchase-orders/{oid}/failed", headers=auth, json={"error": "token expirado"})
+    r = client.post(
+        f"/api/purchase-orders/{oid}/failed", headers=auth, json={"error": "token expirado"}
+    )
     assert r.json()["status"] == "failed" and r.json()["error"] == "token expirado"
 
 
