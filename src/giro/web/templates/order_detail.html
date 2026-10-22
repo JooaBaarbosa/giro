@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Pedido #{{ o.id }}{% endblock %}
+{% block content %}
+<p><a href="/orders">← Pedidos</a></p>
+{% include "_order_card.html" %}
+{% endblock %}

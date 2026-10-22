@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Pedidos{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Pedidos de compra</h1>
+  <p class="muted">Sugeridos automaticamente quando um item fica abaixo do mínimo. Nada é enviado sem sua aprovação.</p>
+</div>
+<nav class="tabs" aria-label="Filtrar por situação">
+  {% for value, label in tabs %}
+  <a href="/orders{% if value %}?status={{ value }}{% endif %}" {% if current == value %}aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+{% for o in orders %}
+  {% with error=None, item_errors={}, notify_failed=False %}{% include "_order_card.html" %}{% endwith %}
+{% else %}
+  <p class="card empty">Nenhum pedido aqui.</p>
+{% endfor %}
+{% endblock %}

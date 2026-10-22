@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse
 
 from giro import reports
 from giro.api.deps import NowDep, SessionDep, SettingsDep
-from giro.web import inventory
+from giro.web import inventory, orders
 from giro.web.templating import chart_data, render
 
 router = APIRouter(include_in_schema=False)
@@ -45,3 +45,4 @@ def product_table(
 
 
 router.include_router(inventory.router)
+router.include_router(orders.router)

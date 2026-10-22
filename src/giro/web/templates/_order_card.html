@@ -1,0 +1,84 @@
+{% set target = "#order-" ~ o.id %}
+<article class="card order-card" id="order-{{ o.id }}">
+  <div class="card-head">
+    <div>
+      <h2><a href="/orders/{{ o.id }}">Pedido #{{ o.id }}</a> · {{ o.supplier.name }}</h2>
+      <p class="order-meta">
+        {{ ORDER_STATUS_LABELS[o.status] | capitalize }}
+        {% if o.created_at %}· criado em {{ o.created_at.strftime("%d/%m %H:%M") }}{% endif %}
+        · {{ o.supplier.whatsapp }}
+      </p>
+    </div>
+    {% if o.status.value == "sent" and o.dry_run %}<span class="badge badge-sim">simulado</span>{% endif %}
+  </div>
+
+  {% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Item</th><th class="num">Quantidade</th>{% if o.status.value == "suggested" %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+        {% for item in o.items %}
+        <tr>
+          <td>{{ item.name }}</td>
+          {% if o.status.value == "suggested" %}
+          <td class="num">
+            <form class="form-inline" style="justify-content:flex-end"
+                  hx-post="/orders/{{ o.id }}/items/{{ item.id }}" hx-target="{{ target }}" hx-swap="outerHTML">
+              <input name="quantity" inputmode="decimal" size="6" value="{{ item.quantity | qty(item.unit) }}" aria-label="Quantidade de {{ item.name }}">
+              <span class="unit">{{ item.unit.value }}</span>
+              <button class="btn" type="submit">Salvar</button>
+            </form>
+            {% if item_errors.get(item.id) %}<span class="field-error">{{ item_errors[item.id] }}</span>{% endif %}
+          </td>
+          <td>
+            <button class="btn btn-danger" hx-post="/orders/{{ o.id }}/items/{{ item.id }}/delete"
+                    hx-target="{{ target }}" hx-swap="outerHTML" aria-label="Remover {{ item.name }}">Remover</button>
+          </td>
+          {% else %}
+          <td class="num">{{ item.quantity | qty(item.unit) }} <span class="unit">{{ item.unit.value }}</span></td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="empty">Sem itens.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if o.status.value == "suggested" %}
+    <p class="muted" style="margin-top:12px">Prévia da mensagem ao fornecedor:</p>
+    <p class="message">{{ o.message_preview }}</p>
+  {% elif o.status.value in ("sent", "received") and o.message_text %}
+    <p class="muted" style="margin-top:12px">Mensagem {% if o.dry_run %}simulada (dry-run){% else %}enviada{% endif %}{% if o.sent_at %} em {{ o.sent_at.strftime("%d/%m %H:%M") }}{% endif %}:</p>
+    <p class="message">{{ o.message_text }}</p>
+  {% endif %}
+
+  {% if o.status.value == "approved" %}
+    <p class="flash flash-ok" style="margin-top:12px">Aprovado — aguardando envio.
+      {% if notify_failed %}O n8n não respondeu agora; o pedido será reenviado automaticamente em até 15 minutos.{% endif %}</p>
+  {% elif o.status.value == "sending" %}
+    <p class="flash flash-ok" style="margin-top:12px">Enviando ao fornecedor…</p>
+  {% elif o.status.value == "failed" %}
+    <p class="flash flash-error" style="margin-top:12px">Falha no envio: {{ o.error }}</p>
+  {% elif o.status.value == "received" %}
+    <p class="flash flash-ok" style="margin-top:12px">Recebido{% if o.received_at %} em {{ o.received_at.strftime("%d/%m %H:%M") }}{% endif %}. Estoque atualizado.</p>
+  {% elif o.status.value == "cancelled" %}
+    <p class="muted" style="margin-top:12px">Cancelado.</p>
+  {% endif %}
+
+  <div class="order-actions">
+    {% if o.status.value == "suggested" %}
+      <button class="btn btn-primary" hx-post="/orders/{{ o.id }}/approve" hx-target="{{ target }}" hx-swap="outerHTML" hx-disabled-elt="this">Aprovar e enviar</button>
+    {% endif %}
+    {% if o.status.value == "failed" %}
+      <button class="btn btn-primary" hx-post="/orders/{{ o.id }}/retry" hx-target="{{ target }}" hx-swap="outerHTML" hx-disabled-elt="this">Reenviar</button>
+    {% endif %}
+    {% if o.status.value == "sent" %}
+      <button class="btn btn-primary" hx-post="/orders/{{ o.id }}/receive" hx-target="{{ target }}" hx-swap="outerHTML" hx-disabled-elt="this">Marcar recebido</button>
+    {% endif %}
+    {% if o.status.value in ("suggested", "approved", "failed") %}
+      <button class="btn btn-danger" hx-post="/orders/{{ o.id }}/cancel" hx-target="{{ target }}" hx-swap="outerHTML" hx-disabled-elt="this">Cancelar</button>
+    {% endif %}
+  </div>
+</article>
