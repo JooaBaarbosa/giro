@@ -42,7 +42,7 @@ docker compose up -d --build
 Depois:
 
 1. **Dashboard:** http://localhost:8000. A mercearia de demonstração já vem com 5 itens abaixo do mínimo.
-2. **n8n:** http://localhost:5678. Crie o usuário dono no primeiro acesso; os dois workflows já estão importados e ativos.
+2. **n8n:** http://localhost:5678 (leva uns 30 s a mais para subir na primeira vez, enquanto importa os workflows). Crie o usuário dono no primeiro acesso; os dois workflows já estão importados e ativos.
 3. Vá em **Pedidos**. Se ainda não houver sugestões (o cron roda a cada 15 min), gere na hora:
 
    ```bash
