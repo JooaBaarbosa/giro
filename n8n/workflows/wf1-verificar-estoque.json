@@ -1,0 +1,305 @@
+{
+  "id": "giroWf1VerEstoque",
+  "name": "Giro · WF1 Verificar estoque (a cada 15 min)",
+  "active": false,
+  "versionId": "6f1d2c3a-2b7e-4d1a-9a55-2f0e7c1b0001",
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo"
+  },
+  "nodes": [
+    {
+      "id": "b1f0b1c0-0000-4000-8000-000000000001",
+      "name": "A cada 15 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b1f0b1c0-0000-4000-8000-000000000008",
+      "name": "Executar sob demanda",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "b1f0b1c0-0000-4000-8000-000000000002",
+      "name": "Sugerir pedidos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_URL }}/api/purchase-orders/suggest",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Service-Token",
+              "value": "={{ $env.SERVICE_TOKEN }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b1f0b1c0-0000-4000-8000-000000000003",
+      "name": "Pedido novo?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        -120
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "exists",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "f2",
+              "leftValue": "={{ $env.WHATSAPP_DRY_RUN }}",
+              "rightValue": "false",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b1f0b1c0-0000-4000-8000-000000000004",
+      "name": "WhatsApp: alerta_estoque_baixo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        -120
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.WHATSAPP_GRAPH_VERSION }}/{{ $env.WHATSAPP_PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $env.OWNER_WHATSAPP.replace(/\\D/g, ''), type: 'template', template: { name: 'alerta_estoque_baixo', language: { code: 'pt_BR' }, components: [{ type: 'body', parameters: $json.alert_params.map(text => ({ type: 'text', text })) }] } }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "b1f0b1c0-0000-4000-8000-000000000005",
+      "name": "Aprovados sem envio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        120
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.API_URL }}/api/purchase-orders",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "approved"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Service-Token",
+              "value": "={{ $env.SERVICE_TOKEN }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b1f0b1c0-0000-4000-8000-000000000006",
+      "name": "Tem pedido?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        120
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f3",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b1f0b1c0-0000-4000-8000-000000000007",
+      "name": "Disparar WF2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        120
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/pedido-aprovado",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ order_id: $json.id }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "A cada 15 minutos": {
+      "main": [
+        [
+          {
+            "node": "Sugerir pedidos",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Aprovados sem envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sugerir pedidos": {
+      "main": [
+        [
+          {
+            "node": "Pedido novo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedido novo?": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp: alerta_estoque_baixo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aprovados sem envio": {
+      "main": [
+        [
+          {
+            "node": "Tem pedido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem pedido?": {
+      "main": [
+        [
+          {
+            "node": "Disparar WF2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Executar sob demanda": {
+      "main": [
+        [
+          {
+            "node": "Sugerir pedidos",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Aprovados sem envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {}
+}
