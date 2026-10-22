@@ -1,0 +1,23 @@
+{% from "_macros.html" import field_error %}
+<div class="form-row">
+  <label for="supplier_id">Fornecedor</label>
+  <select id="supplier_id" name="supplier_id" required>
+    <option value="">Selecione…</option>
+    {% for s in suppliers %}
+    <option value="{{ s.id }}" {% if form.get("supplier_id") | string == s.id | string %}selected{% endif %}>{{ s.name }}</option>
+    {% endfor %}
+  </select>
+  {{ field_error(errors, "supplier_id") }}
+</div>
+<div class="form-inline">
+  <div class="form-row">
+    <label for="min_stock">Estoque mínimo</label>
+    <input id="min_stock" name="min_stock" inputmode="decimal" required value="{{ form.get('min_stock', '') }}">
+    {{ field_error(errors, "min_stock") }}
+  </div>
+  <div class="form-row">
+    <label for="cover_days">Dias de cobertura</label>
+    <input id="cover_days" name="cover_days" type="number" min="1" required value="{{ form.get('cover_days', 15) }}">
+    {{ field_error(errors, "cover_days") }}
+  </div>
+</div>

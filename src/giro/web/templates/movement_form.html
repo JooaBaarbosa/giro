@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Registrar movimento{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Registrar movimento</h1>
+  <p class="muted">Venda no balcão, entrada de mercadoria ou ajuste de inventário. Enter salva.</p>
+</div>
+<section class="card">
+  {% include "_movement_panel.html" %}
+</section>
+{% endblock %}

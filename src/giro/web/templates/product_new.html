@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field_error, form_error %}
+{% block title %}Novo produto{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Novo produto</h1>
+  <p class="muted">O estoque começa em zero; registre uma entrada depois de cadastrar.</p>
+</div>
+<section class="card">
+  {{ form_error(errors) }}
+  {% if not suppliers %}
+  <p class="flash flash-error">Cadastre um <a href="/suppliers/new">fornecedor</a> antes do primeiro produto.</p>
+  {% endif %}
+  <form class="form" method="post" action="/products">
+    <div class="form-row">
+      <label for="sku">SKU</label>
+      <input id="sku" name="sku" maxlength="40" required value="{{ form.get('sku', '') }}">
+      {{ field_error(errors, "sku") }}
+    </div>
+    <div class="form-row">
+      <label for="name">Nome</label>
+      <input id="name" name="name" maxlength="120" required value="{{ form.get('name', '') }}">
+      {{ field_error(errors, "name") }}
+    </div>
+    <div class="form-row">
+      <label for="unit">Unidade</label>
+      <select id="unit" name="unit">
+        {% for u in ["un", "kg", "cx"] %}
+        <option value="{{ u }}" {% if form.get("unit") == u %}selected{% endif %}>{{ u }}</option>
+        {% endfor %}
+      </select>
+      {{ field_error(errors, "unit") }}
+    </div>
+    {% include "_product_fields.html" %}
+    <div><button class="btn btn-primary" type="submit">Cadastrar</button></div>
+  </form>
+</section>
+{% endblock %}

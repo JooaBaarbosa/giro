@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Fornecedores{% endblock %}
+{% block content %}
+<div class="page-head card-head">
+  <div>
+    <h1>Fornecedores</h1>
+    <p class="muted">Quem recebe os pedidos pelo WhatsApp</p>
+  </div>
+  <a class="btn btn-primary" href="/suppliers/new">+ Novo fornecedor</a>
+</div>
+<section class="card">
+  <div class="table-wrap">
+    {% if suppliers %}
+    <table>
+      <thead><tr><th>Nome</th><th>WhatsApp</th><th>Situação</th></tr></thead>
+      <tbody>
+        {% for s in suppliers %}
+        <tr>
+          <td><a href="/suppliers/{{ s.id }}">{{ s.name }}</a></td>
+          <td class="num" style="text-align:left">{{ s.whatsapp }}</td>
+          <td>{% if s.active %}Ativo{% else %}<span class="muted">Inativo</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">Nenhum fornecedor ainda.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

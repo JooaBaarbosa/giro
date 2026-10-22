@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field_error, form_error %}
+{% block title %}{% if supplier_id %}Editar fornecedor{% else %}Novo fornecedor{% endif %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{% if supplier_id %}Editar fornecedor{% else %}Novo fornecedor{% endif %}</h1>
+</div>
+<section class="card">
+  {{ form_error(errors) }}
+  <form class="form" method="post" action="{% if supplier_id %}/suppliers/{{ supplier_id }}{% else %}/suppliers{% endif %}">
+    <div class="form-row">
+      <label for="name">Nome</label>
+      <input id="name" name="name" maxlength="120" required value="{{ form.get('name', '') }}">
+      {{ field_error(errors, "name") }}
+    </div>
+    <div class="form-row">
+      <label for="whatsapp">WhatsApp</label>
+      <input id="whatsapp" name="whatsapp" type="tel" required placeholder="+55 11 98765-4321" value="{{ form.get('whatsapp', '') }}">
+      {{ field_error(errors, "whatsapp") }}
+    </div>
+    {% if supplier_id %}
+    <label><input type="checkbox" name="active" {% if form.get("active") %}checked{% endif %}> Ativo</label>
+    {% endif %}
+    <div><button class="btn btn-primary" type="submit">Salvar</button></div>
+  </form>
+</section>
+{% endblock %}

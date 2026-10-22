@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Produtos{% endblock %}
+{% block content %}
+<div class="page-head card-head">
+  <div>
+    <h1>Produtos</h1>
+    <p class="muted">{{ products | length }} cadastrados</p>
+  </div>
+  <a class="btn btn-primary" href="/products/new">+ Novo produto</a>
+</div>
+<section class="card">
+  <div class="table-wrap">
+    {% if products %}
+    <table>
+      <thead>
+        <tr><th>Item</th><th>Fornecedor</th><th class="num">Estoque</th><th class="num">Mínimo</th><th class="num">Cobertura</th><th>Situação</th></tr>
+      </thead>
+      <tbody>
+        {% for p in products %}
+        <tr>
+          <td><a href="/products/{{ p.id }}">{{ p.name }}</a> <span class="sku">{{ p.sku }}</span></td>
+          <td>{{ p.supplier.name }}</td>
+          <td class="num">{{ p.current_stock | qty(p.unit) }} <span class="unit">{{ p.unit.value }}</span></td>
+          <td class="num">{{ p.min_stock | qty(p.unit) }}</td>
+          <td class="num">{{ p.cover_days }} dias</td>
+          <td>{% if p.active %}Ativo{% else %}<span class="muted">Inativo</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">Nenhum produto ainda. <a href="/products/new">Cadastre o primeiro</a>.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

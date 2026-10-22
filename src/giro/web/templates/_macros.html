@@ -1,0 +1,7 @@
+{% macro field_error(errors, name) -%}
+  {% if errors.get(name) %}<span class="field-error">{{ errors[name] }}</span>{% endif %}
+{%- endmacro %}
+
+{% macro form_error(errors) -%}
+  {% if errors.get("__all__") %}<div class="flash flash-error" role="alert">{{ errors["__all__"] }}</div>{% endif %}
+{%- endmacro %}

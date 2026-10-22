@@ -1,0 +1,41 @@
+{% from "_macros.html" import field_error, form_error %}
+<div id="movement-panel">
+  {% if result %}<div class="flash flash-ok" role="status">✔ {{ result }}</div>{% endif %}
+  {{ form_error(errors) }}
+  <form class="form" method="post" action="/movements"
+        hx-post="/movements" hx-target="#movement-panel" hx-swap="outerHTML">
+    <div class="form-row">
+      <label for="kind">Tipo</label>
+      <select id="kind" name="kind">
+        {% for value, label in [("sale", "Venda"), ("purchase", "Entrada"), ("adjustment", "Ajuste")] %}
+        <option value="{{ value }}" {% if form.get("kind") == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      {{ field_error(errors, "kind") }}
+    </div>
+    <div class="form-row">
+      <label for="product_id">Item</label>
+      <select id="product_id" name="product_id" required autofocus>
+        <option value="">Selecione…</option>
+        {% for p in products %}
+        <option value="{{ p.id }}" {% if form.get("product_id") | string == p.id | string %}selected{% endif %}>{{ p.name }} — {{ p.sku }}</option>
+        {% endfor %}
+      </select>
+      {{ field_error(errors, "product_id") }}
+    </div>
+    <div class="form-row">
+      <label for="quantity">Quantidade</label>
+      <input id="quantity" name="quantity" inputmode="decimal" required value="{{ form.get('quantity', '') }}"
+             placeholder="ex.: 2 ou 1,5 (kg). Ajuste aceita negativo">
+      {{ field_error(errors, "quantity") }}
+    </div>
+    <div class="form-row">
+      <label for="note">Observação <span class="muted">(opcional)</span></label>
+      <input id="note" name="note" maxlength="500" value="{{ form.get('note', '') }}">
+      {{ field_error(errors, "note") }}
+    </div>
+    <div>
+      <button class="btn btn-primary" type="submit" hx-disabled-elt="this">Salvar</button>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "_macros.html" import field_error, form_error %}
+{% block title %}{{ product.name }}{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ product.name }} <span class="sku">{{ product.sku }}</span></h1>
+  <p class="muted">{{ product.supplier.name }} · unidade {{ product.unit.value }}{% if not product.active %} · inativo{% endif %}</p>
+</div>
+
+<section class="kpis">
+  <div class="kpi {% if product.current_stock < product.min_stock %}kpi-alert{% endif %}">
+    <span class="kpi-label">Estoque atual</span>
+    <span class="kpi-value">{{ product.current_stock | qty(product.unit) }}</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Média/dia (30 dias)</span>
+    <span class="kpi-value">{{ forecast.avg_daily | qty1 }}</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Próxima compra</span>
+    <span class="kpi-value">{{ next_purchase_label(forecast, today) }}</span>
+  </div>
+  <div class="kpi">
+    <span class="kpi-label">Quantidade sugerida</span>
+    <span class="kpi-value">{{ forecast.suggested_qty | qty(product.unit) }}</span>
+  </div>
+</section>
+{% if forecast.low_history %}<p class="badge">pouco histórico: a previsão usa menos de 7 dias de vendas</p>{% endif %}
+
+<section class="card">
+  <div class="card-head"><h2>Saídas nos últimos 30 dias</h2></div>
+  <div class="chart-box"><canvas id="sales-chart" aria-label="Saídas do item por dia" role="img"></canvas></div>
+  <script id="sales-data" type="application/json">{{ chart | tojson }}</script>
+</section>
+
+<div class="grid-2">
+  <section class="card">
+    <div class="card-head"><h2>Movimentações recentes</h2></div>
+    <div class="table-wrap">
+      {% if movements %}
+      <table>
+        <thead><tr><th>Quando</th><th>Tipo</th><th class="num">Qtd</th><th>Obs.</th></tr></thead>
+        <tbody>
+          {% for m in movements %}
+          <tr>
+            <td>{{ m.occurred_at.strftime("%d/%m %H:%M") }}</td>
+            <td>{{ KIND_LABELS[m.kind] }}</td>
+            <td class="num">{{ m.quantity | qty(product.unit) }}</td>
+            <td>{{ m.note or "" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="empty">Sem movimentações.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Configuração</h2></div>
+    {{ form_error(errors) }}
+    <form class="form" method="post" action="/products/{{ product.id }}">
+      <div class="form-row">
+        <label for="name">Nome</label>
+        <input id="name" name="name" maxlength="120" required value="{{ form.get('name', '') }}">
+        {{ field_error(errors, "name") }}
+      </div>
+      {% include "_product_fields.html" %}
+      <label><input type="checkbox" name="active" {% if form.get("active") %}checked{% endif %}> Ativo</label>
+      <div><button class="btn btn-primary" type="submit">Salvar</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/chart.js" defer></script>
+{% endblock %}
