@@ -100,8 +100,8 @@ Siga [docs/whatsapp-setup.md](docs/whatsapp-setup.md) (conta Meta, número de te
 
 ```bash
 uv sync
-uv run pytest                 # unitários + integração (Postgres real via testcontainers; precisa de Docker)
-uv run pytest -m e2e          # ponta a ponta contra o compose em execução
+uv run python -m pytest        # unitários + integração (Postgres real via testcontainers; precisa de Docker)
+uv run python -m pytest -m e2e # ponta a ponta contra o compose em execução
 uv run ruff check . && uv run mypy src
 ```
 
