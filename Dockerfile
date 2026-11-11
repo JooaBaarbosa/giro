@@ -1,6 +1,6 @@
-FROM python:3.14-slim
+FROM python:3.14.10-slim-trixie
 
-COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy PYTHONUNBUFFERED=1
 
 WORKDIR /app

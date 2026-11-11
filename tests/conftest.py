@@ -22,7 +22,7 @@ os.environ.setdefault("SERVICE_TOKEN", "test-token")
 
 @pytest.fixture(scope="session")
 def database_url() -> Iterator[str]:
-    with PostgresContainer("postgres:17", driver="psycopg") as pg:
+    with PostgresContainer("postgres:17.11-trixie", driver="psycopg") as pg:
         url = pg.get_connection_url()
         os.environ["DATABASE_URL"] = url
         get_settings.cache_clear()
