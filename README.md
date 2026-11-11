@@ -32,14 +32,48 @@ Stack: Python 3.14 · FastAPI · SQLAlchemy 2 · PostgreSQL 17 · HTMX · Chart.
 
 ## Rodando
 
-Pré-requisito: Docker.
+### 0. Preparar a máquina (uma vez só)
+
+- Docker Desktop instalado e **aberto**. Confira com `docker info`: ele precisa mostrar a versão do
+  servidor. Se aparecer `failed to connect to the docker API`, o Docker Desktop está fechado.
+
+### 1. Clonar ou atualizar
 
 ```bash
-git clone <este repositório> && cd giro
-docker compose up -d --build
+git clone https://github.com/JooaBaarbosa/giro.git && cd giro
 ```
 
-Depois:
+Se já tem o clone, rode `git status -sb`. Se aparecer `[behind N]`, atualize com `git pull --ff-only`.
+
+### 2. Liberar as portas 8000, 5432 e 5678
+
+O Giro usa 8000 (dashboard), 5432 (Postgres) e 5678 (n8n). Rode `docker ps`: se outro projeto
+estiver em alguma delas, pare-o com `docker compose down` na pasta dele. Sem isso, a subida falha
+com `port is already allocated`.
+
+### 3. Configurar o `.env` (opcional)
+
+Não é preciso: tudo tem valor padrão e o WhatsApp fica em modo de simulação (dry-run). Para
+personalizar (nome da loja, fuso, token, WhatsApp), copie `.env.example` para `.env` antes de subir.
+
+### 4. Build e subida
+
+```bash
+docker compose up -d --build --wait
+```
+
+- O comando só termina quando Postgres, API e n8n estão no ar. Confira com `docker compose ps`.
+- Erro de download durante o build é falha de rede: rode o mesmo comando de novo.
+- Se um container parar, veja o motivo com `docker compose logs api --tail 20` (ou `n8n`).
+
+### 5. Conferir
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/healthz   # 200
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5678/healthz   # 200
+```
+
+O n8n leva uns 30 s a mais para responder na primeira vez, enquanto importa os workflows.
 
 1. **Dashboard:** http://localhost:8000. A mercearia de demonstração já vem com 5 itens abaixo do mínimo.
 2. **n8n:** http://localhost:5678 (leva uns 30 s a mais para subir na primeira vez, enquanto importa os workflows). Crie o usuário dono no primeiro acesso; os dois workflows já estão importados e ativos.
@@ -51,7 +85,12 @@ Depois:
 
    Aprove um pedido: em segundos ele aparece como **enviado (simulado)**, com a mensagem que iria ao fornecedor.
 
-Para personalizar (nome da loja, fuso, token, WhatsApp), copie `.env.example` para `.env` antes de subir.
+### 6. Desligar
+
+```bash
+docker compose down        # os dados ficam nos volumes
+docker compose down -v     # apaga também o banco da loja e o do n8n
+```
 
 ### Ligar o WhatsApp de verdade
 
