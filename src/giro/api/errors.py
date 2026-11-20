@@ -8,7 +8,10 @@ from giro.errors import (
     InsufficientStock,
     InvalidInput,
     InvalidTransition,
+    NoOpenSession,
     NotFound,
+    PaymentMismatch,
+    SessionAlreadyOpen,
 )
 
 STATUS_BY_ERROR: dict[type[DomainError], int] = {
@@ -18,6 +21,9 @@ STATUS_BY_ERROR: dict[type[DomainError], int] = {
     InvalidTransition: 409,
     EmptyOrder: 409,
     NotFound: 404,
+    NoOpenSession: 409,
+    SessionAlreadyOpen: 409,
+    PaymentMismatch: 422,
 }
 
 
@@ -25,7 +31,12 @@ def status_for(exc: DomainError) -> int:
     return STATUS_BY_ERROR.get(type(exc), 400)
 
 
-BACK_LINKS = {"/orders": "Pedidos", "/products": "Produtos", "/suppliers": "Fornecedores"}
+BACK_LINKS = {
+    "/orders": "Pedidos",
+    "/products": "Produtos",
+    "/suppliers": "Fornecedores",
+    "/caixa": "Caixa",
+}
 
 
 async def _domain_error_handler(request: Request, exc: Exception) -> Response:
