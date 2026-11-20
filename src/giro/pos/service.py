@@ -1,4 +1,4 @@
-"""Turno de caixa: abertura, sangria, suprimento e dinheiro esperado. Sem commit aqui."""
+"""Turno de caixa e carrinho (venda em aberto). Sem commit aqui."""
 
 from datetime import datetime
 from decimal import Decimal
@@ -7,18 +7,28 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from giro.errors import InvalidInput, NoOpenSession, SessionAlreadyOpen
+from giro.errors import (
+    InvalidInput,
+    InvalidTransition,
+    NoOpenSession,
+    NotFound,
+    SessionAlreadyOpen,
+)
 from giro.fmt import brl
+from giro.inventory.service import ensure_quantity_fits_unit, find_product_by_code
 from giro.models import (
     CashMovement,
     CashMovementKind,
     CashSession,
     PaymentMethod,
     Sale,
+    SaleItem,
     SalePayment,
     SaleStatus,
+    Unit,
 )
-from giro.pos.schemas import CashMovementIn, OpenSessionIn
+from giro.pos.money import line_total
+from giro.pos.schemas import AddItemIn, CashMovementIn, ItemQtyIn, OpenSessionIn
 
 ALREADY_OPEN = "Já existe um caixa aberto."
 CLOSED = "O caixa está fechado. Abra o caixa para continuar."
@@ -95,3 +105,88 @@ def add_cash_movement(s: Session, data: CashMovementIn, *, now: datetime) -> Cas
     s.add(movement)
     s.flush()
     return movement
+
+
+def current_sale(s: Session) -> Sale | None:
+    return s.scalar(select(Sale).where(Sale.status == SaleStatus.OPEN))
+
+
+def _recalc_total(sale: Sale) -> None:
+    sale.total = sum((item.line_total for item in sale.items), Decimal(0))
+
+
+def add_item(s: Session, data: AddItemIn, *, now: datetime) -> SaleItem:
+    session = require_session(s)
+    product = find_product_by_code(s, data.code)
+    if product.sale_price is None:
+        raise InvalidInput("Produto sem preço de venda: cadastre o preço antes de vender.")
+    quantity = data.quantity
+    if quantity is None:
+        if product.unit is Unit.KG:
+            raise InvalidInput(f"Informe o peso para {product.name}.")
+        quantity = Decimal(1)
+    ensure_quantity_fits_unit(quantity, product.unit)
+    sale = current_sale(s)
+    if sale is None:
+        sale = Sale(session_id=session.id, created_at=now)
+        s.add(sale)
+        s.flush()
+    item = next((i for i in sale.items if i.product_id == product.id), None)
+    if item is None:
+        item = SaleItem(
+            sale=sale,
+            product=product,
+            quantity=quantity,
+            unit_price=product.sale_price,
+            unit_cost=product.cost_price,
+            line_total=line_total(quantity, product.sale_price),
+        )
+        s.add(item)
+    else:
+        merged = item.quantity + quantity
+        ensure_quantity_fits_unit(merged, product.unit)
+        item.quantity = merged
+        item.line_total = line_total(merged, item.unit_price)
+    s.flush()
+    _recalc_total(sale)
+    s.flush()
+    return item
+
+
+def _open_sale_item(s: Session, item_id: int) -> tuple[Sale, SaleItem]:
+    item = s.get(SaleItem, item_id)
+    if item is None:
+        raise NotFound("Item não encontrado.")
+    sale = item.sale
+    if sale.status is not SaleStatus.OPEN:
+        raise InvalidTransition("A venda não está em aberto.")
+    return sale, item
+
+
+def set_item_quantity(s: Session, item_id: int, data: ItemQtyIn) -> SaleItem:
+    sale, item = _open_sale_item(s, item_id)
+    ensure_quantity_fits_unit(data.quantity, item.product.unit)
+    item.quantity = data.quantity
+    item.line_total = line_total(data.quantity, item.unit_price)
+    _recalc_total(sale)
+    s.flush()
+    return item
+
+
+def remove_item(s: Session, item_id: int) -> None:
+    sale, item = _open_sale_item(s, item_id)
+    sale.items.remove(item)
+    s.flush()
+    _recalc_total(sale)
+    s.flush()
+
+
+def discard_sale(s: Session) -> None:
+    sale = current_sale(s)
+    if sale is not None:
+        s.delete(sale)
+        s.flush()
+
+
+def over_stock(item: SaleItem) -> bool:
+    return item.quantity > item.product.current_stock
