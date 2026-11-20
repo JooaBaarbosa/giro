@@ -186,7 +186,7 @@ O seed passa a preencher `sale_price`, `cost_price` e alguns `barcode` dos produ
 
 ## 10. Testes
 
-TDD; testes rodam no Docker (o Windows bloqueia `.pyd` da venv).
+TDD; testes rodam nativos com `uv run python -m pytest` (Postgres real via testcontainers; precisa do Docker aberto).
 
 - **Unit:** arredondamento de linha em kg; validação de pagamento (dividido, troco, excesso em cartão/Pix); parse de `N*CODIGO` com vírgula decimal; validação de EAN-8/12/13; máquina de estados da venda.
 - **Integração (Postgres real):** concluir baixa o estoque com `sale_id`; concluir com falta não grava nada; ajuste e nova tentativa; cancelar devolve o estoque e sai da venda líquida; esperado do fechamento; índices únicos impedem 2 turnos e 2 vendas abertas; dois "concluir" concorrentes resultam em uma só baixa; fechamento recusado com venda aberta; relatórios e previsão com cancelamento.

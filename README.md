@@ -96,13 +96,28 @@ docker compose down -v     # apaga também o banco da loja e o do n8n
 
 Siga [docs/whatsapp-setup.md](docs/whatsapp-setup.md) (conta Meta, número de teste, token) e [docs/templates-meta.md](docs/templates-meta.md) (os dois templates a aprovar). Depois, `WHATSAPP_DRY_RUN=false` no `.env` e `docker compose up -d`.
 
+## Caixa
+
+Um caixa (PDV) de balcão, com um turno por vez e uma venda em aberto por vez.
+
+1. Abra `/caixa` e informe o valor inicial do troco para abrir o caixa.
+2. No campo de código, digite ou leia o **código de barras ou o SKU** do produto. Para várias unidades use `3*CODIGO`; para itens por peso, informe o peso (ex.: `0,350*CODIGO`).
+3. Registre o pagamento (dinheiro, Pix, débito ou crédito; pode dividir entre formas, com troco em dinheiro) e finalize. A venda baixa o estoque na hora.
+4. Ao fim do dia, feche o caixa informando o valor contado; o sistema mostra a diferença para o esperado.
+
+Atalhos: **F2** foca o campo de código, **F4** finaliza a venda, **Esc** fecha o painel aberto.
+
+Um leitor de código de barras USB funciona como um teclado: com o foco no campo de código, basta ler o produto.
+
+Os 3 turnos fechados que aparecem no histórico após o seed são dados de demonstração (marcados como demo).
+
 ## Desenvolvimento
 
 ```bash
 uv sync
 uv run python -m pytest        # unitários + integração (Postgres real via testcontainers; precisa de Docker)
 uv run python -m pytest -m e2e # ponta a ponta contra o compose em execução
-uv run ruff check . && uv run mypy src
+uv run python -m ruff check . && uv run python -m mypy src
 ```
 
 API JSON documentada em http://localhost:8000/docs. Todas as rotas `/api/*` exigem o header `X-Service-Token`.
@@ -115,6 +130,9 @@ Design e plano de implementação: [docs/superpowers/specs](docs/superpowers/spe
 - Postgres (5432) e n8n (5678) só aceitam conexões desta máquina (`127.0.0.1`). O dashboard (8000) fica acessível na rede local, então vale a mesma ressalva de login acima.
 - Um fornecedor por produto, uma loja.
 - Previsão por média móvel simples (sem sazonalidade).
+- Caixa sem emissão fiscal (NFC-e/SAT).
+- Caixa sem desconto.
+- Caixa sem comprovante impresso.
 
 ## Próximos passos
 
