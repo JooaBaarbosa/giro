@@ -72,7 +72,7 @@ def test_seed_creates_three_closed_demo_sessions_with_sales(session):
         assert cs.opened_at <= cs.closed_at <= NOW
         days.add(cs.opened_at.astimezone(tz).date())
         sales = list(session.scalars(select(Sale).where(Sale.session_id == cs.id)))
-        assert len(sales) >= 2
+        assert len(sales) >= 3
         assert all(x.status is SaleStatus.COMPLETED for x in sales)
     assert len(days) == 3
 

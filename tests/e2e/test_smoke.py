@@ -1,6 +1,9 @@
 """Fumaça ponta a ponta contra o `docker compose up` (dry-run do WhatsApp).
 
 Rodar: docker compose up -d --build --wait && uv run python -m pytest -m e2e -v
+
+O e2e do caixa deixa no histórico local um turno fechado com a nota "Teste e2e" (não há API para
+excluir turnos); os itens e fornecedores criados são desativados.
 """
 
 import os
@@ -91,7 +94,12 @@ def _fake_ean13() -> str:
 
 @pytest.fixture
 def e2e_pos_product(client, e2e_supplier_product):
-    """Produto vendável (preço 10,00, EAN-13 fictício, estoque 10) para o caixa."""
+    """Produto vendável (preço 10,00, EAN-13 fictício, estoque 10) para o caixa.
+
+    Pula antes de criar qualquer coisa se já houver caixa aberto: sem teardown, o turno e a venda
+    em aberto de quem usa o sistema nunca são tocados."""
+    if client.get("/api/pos/session", headers=AUTH).json():
+        pytest.skip("Já existe um caixa aberto; o e2e não mexe em turno alheio.")
     supplier, _ = e2e_supplier_product
     suffix = uuid.uuid4().hex[:8]
     barcode = _fake_ean13()
@@ -119,7 +127,7 @@ def e2e_pos_product(client, e2e_supplier_product):
         json={"product_id": product["id"], "kind": "purchase", "quantity": "10"},
     ).raise_for_status()
     yield product
-    # limpeza: nada de venda aberta nem turno aberto; produto desativado
+    # limpeza: só chega aqui sem caixa alheio (o skip acima), então o turno aberto é do teste
     client.delete("/api/pos/sale", headers=AUTH)
     if client.get("/api/pos/session", headers=AUTH).json():
         client.post("/api/pos/session/close", headers=AUTH, json={"counted_amount": "0"})
@@ -133,8 +141,6 @@ def _stock(client, product_id: int) -> str:
 
 def test_pos_flow_split_payment_cancel_and_close_with_difference(client, e2e_pos_product):
     product = e2e_pos_product
-    if client.get("/api/pos/session", headers=AUTH).json():
-        pytest.skip("Já existe um caixa aberto; o e2e não mexe em turno alheio.")
     assert client.get("/caixa").status_code == 200
 
     client.post(

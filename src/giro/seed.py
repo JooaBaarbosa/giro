@@ -143,7 +143,8 @@ def _run_demo_session(s: Session, sales: list[DemoSale], *, day: datetime, tz: Z
         for idx, qty in lines:
             pos.add_item(s, AddItemIn(code=PRODUCTS[idx].sku, quantity=qty), now=moment)
         sale = pos.current_sale(s, fresh=True)
-        assert sale is not None
+        if sale is None:
+            raise RuntimeError("Seed: a venda demo não foi criada.")
         pos.add_payment(s, PaymentIn(method=method, amount=sale.total))
         pos.complete_sale(s, now=moment)
     counted = pos.expected_cash(s, session.id)  # sem diferença inventada
