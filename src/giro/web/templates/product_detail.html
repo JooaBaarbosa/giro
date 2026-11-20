@@ -9,6 +9,7 @@
   <h1>{{ product.name }} <span class="sku">{{ product.sku }}</span></h1>
   <p class="muted">{{ product.supplier.name }} · unidade {{ product.unit.value }}{% if not product.active %} · inativo{% endif %}</p>
 </div>
+{% if product.sale_price is none %}<p class="flash flash-error">Sem preço de venda: não pode ser vendido no caixa.</p>{% endif %}
 
 <section class="kpis">
   <div class="kpi {% if product.current_stock < product.min_stock %}kpi-alert{% endif %}">

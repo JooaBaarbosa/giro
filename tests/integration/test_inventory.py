@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from giro.errors import DuplicateSku, InsufficientStock, InvalidInput, NotFound
@@ -11,12 +12,13 @@ from giro.inventory.schemas import MovementIn, ProductIn, ProductUpdate, Supplie
 from giro.inventory.service import (
     create_product,
     create_supplier,
+    find_product_by_code,
     get_product,
     list_movements,
     record_movement,
     update_product,
 )
-from giro.models import Product, Unit
+from giro.models import Product, Supplier, Unit
 
 
 def sale(product_id: int, qty: str | int) -> MovementIn:
@@ -192,3 +194,82 @@ def test_concurrent_duplicate_sku_is_domain_error(engine, session, make_supplier
     for t in threads:
         t.join()
     assert sorted(results) == ["duplicate", "ok"]
+
+
+def _new_product(session, sku: str, barcode: str | None = None):
+    sup = session.scalars(select(Supplier)).first() or create_supplier(
+        session, SupplierIn(name="Dist", whatsapp="+5511987654321")
+    )
+    return create_product(
+        session,
+        ProductIn(
+            sku=sku, name=sku, unit=Unit.UN, supplier_id=sup.id, min_stock=1, barcode=barcode
+        ),
+    )
+
+
+def test_find_by_code_prefers_barcode_over_sku(session):
+    _new_product(session, "7891000100103")
+    b = _new_product(session, "B", barcode="7891000100103")
+    assert find_product_by_code(session, " 7891000100103 ").id == b.id
+
+
+def test_find_by_code_falls_back_to_sku(session):
+    a = _new_product(session, "ARR5")
+    assert find_product_by_code(session, "ARR5").id == a.id
+
+
+def test_find_by_code_ignores_inactive(session):
+    a = _new_product(session, "ARR5", barcode="7891000100103")
+    update_product(session, a.id, ProductUpdate(active=False))
+    with pytest.raises(NotFound, match="Produto não encontrado."):
+        find_product_by_code(session, "7891000100103")
+    with pytest.raises(NotFound):
+        find_product_by_code(session, "ARR5")
+
+
+def test_duplicate_barcode_refused_on_create(session):
+    _new_product(session, "A", barcode="7891000100103")
+    with pytest.raises(InvalidInput, match="Código de barras já cadastrado"):
+        _new_product(session, "B", barcode="7891000100103")
+    assert get_product(session, 1).sku == "A"
+
+
+def test_duplicate_barcode_refused_on_update(session):
+    _new_product(session, "A", barcode="7891000100103")
+    b = _new_product(session, "B")
+    with pytest.raises(InvalidInput, match="Código de barras já cadastrado"):
+        update_product(session, b.id, ProductUpdate(barcode="7891000100103"))
+
+
+def test_update_keeps_own_barcode_and_clears_it(session):
+    a = _new_product(session, "A", barcode="7891000100103")
+    update_product(session, a.id, ProductUpdate(barcode="7891000100103", name="Novo"))
+    assert a.barcode == "7891000100103"
+    update_product(session, a.id, ProductUpdate(barcode=""))
+    assert a.barcode is None
+
+
+def test_invalid_barcode_rejected_by_schema():
+    with pytest.raises(ValidationError, match="Código de barras inválido"):
+        ProductIn(sku="A", name="A", unit=Unit.UN, supplier_id=1, min_stock=1, barcode="123")
+
+
+def test_empty_barcode_becomes_none_and_prices_validated():
+    base = {"sku": "A", "name": "A", "unit": Unit.UN, "supplier_id": 1, "min_stock": 1}
+    assert ProductIn(**base, barcode="  ").barcode is None
+    with pytest.raises(ValidationError):
+        ProductIn(**base, sale_price=Decimal("0"))
+    with pytest.raises(ValidationError):
+        ProductIn(**base, cost_price=Decimal("-1"))
+    with pytest.raises(ValidationError):
+        ProductIn(**base, sale_price=Decimal("1.005"))
+    assert ProductIn(**base, cost_price=Decimal("0")).cost_price == 0
+
+
+def test_update_clears_prices(session):
+    a = _new_product(session, "A")
+    update_product(session, a.id, ProductUpdate(sale_price=Decimal("12.90")))
+    assert a.sale_price == Decimal("12.90")
+    update_product(session, a.id, ProductUpdate(sale_price=None))
+    assert a.sale_price is None

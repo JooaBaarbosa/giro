@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
 from giro.config import get_settings
+from giro.fmt import brl
 from giro.forecast import Forecast
 from giro.models import MovementKind, Unit
 from giro.orders.message import format_qty
@@ -67,7 +68,7 @@ def next_purchase_label(forecast: Forecast, today: date) -> str:
     return brdate(forecast.next_purchase)
 
 
-templates.env.filters.update(qty=qty, qty1=qty1, brdate=brdate, days=days, localdt=localdt)
+templates.env.filters.update(qty=qty, qty1=qty1, brdate=brdate, days=days, localdt=localdt, brl=brl)
 templates.env.globals.update(
     STATUS_LABELS=STATUS_LABELS,
     KIND_LABELS=KIND_LABELS,

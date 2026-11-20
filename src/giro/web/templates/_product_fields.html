@@ -21,3 +21,20 @@
     {{ field_error(errors, "cover_days") }}
   </div>
 </div>
+<div class="form-row">
+  <label for="barcode">Código de barras</label>
+  <input id="barcode" name="barcode" inputmode="numeric" maxlength="14" autocomplete="off" value="{{ form.get('barcode', '') }}">
+  {{ field_error(errors, "barcode") }}
+</div>
+<div class="form-inline">
+  <div class="form-row">
+    <label for="sale_price">Preço de venda (R$)</label>
+    <input id="sale_price" name="sale_price" inputmode="decimal" value="{{ form.get('sale_price', '') }}">
+    {{ field_error(errors, "sale_price") }}
+  </div>
+  <div class="form-row">
+    <label for="cost_price">Custo (R$)</label>
+    <input id="cost_price" name="cost_price" inputmode="decimal" value="{{ form.get('cost_price', '') }}">
+    {{ field_error(errors, "cost_price") }}
+  </div>
+</div>

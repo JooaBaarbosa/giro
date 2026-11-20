@@ -6,11 +6,15 @@ from typing import Annotated, Self
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from giro.models import MovementKind, Unit
+from giro.pos.codes import is_valid_gtin
 
 E164 = re.compile(r"^\+[1-9]\d{7,14}$")
 PHONE_MSG = "Telefone deve estar no formato internacional, ex.: +5511987654321."
 
 Name = Annotated[str, Field(min_length=1, max_length=120)]
+SalePrice = Annotated[Decimal, Field(gt=0, max_digits=12, decimal_places=2)]
+CostPrice = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)]
+BARCODE_MSG = "Código de barras inválido (EAN-8, UPC-A ou EAN-13)."
 
 
 def normalize_phone(raw: str) -> str:
@@ -18,6 +22,17 @@ def normalize_phone(raw: str) -> str:
     if not E164.match(phone):
         raise ValueError(PHONE_MSG)
     return phone
+
+
+def normalize_barcode(raw: str | None) -> str | None:
+    if raw is None:
+        return None
+    code = raw.strip()
+    if not code:
+        return None
+    if not is_valid_gtin(code):
+        raise ValueError(BARCODE_MSG)
+    return code
 
 
 class SupplierIn(BaseModel):
@@ -46,6 +61,11 @@ class ProductIn(BaseModel):
     supplier_id: int
     min_stock: Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=3)]
     cover_days: Annotated[int, Field(ge=1)] = 15
+    barcode: str | None = None
+    sale_price: SalePrice | None = None
+    cost_price: CostPrice | None = None
+
+    _barcode = field_validator("barcode")(normalize_barcode)
 
 
 class ProductUpdate(BaseModel):
@@ -55,6 +75,11 @@ class ProductUpdate(BaseModel):
     min_stock: Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=3)] | None = None
     cover_days: Annotated[int, Field(ge=1)] | None = None
     active: bool | None = None
+    barcode: str | None = None
+    sale_price: SalePrice | None = None
+    cost_price: CostPrice | None = None
+
+    _barcode = field_validator("barcode")(normalize_barcode)
 
 
 class MovementIn(BaseModel):
@@ -97,6 +122,9 @@ class ProductOut(BaseModel):
     cover_days: int
     current_stock: Decimal
     active: bool
+    barcode: str | None
+    sale_price: Decimal | None
+    cost_price: Decimal | None
 
 
 class MovementOut(BaseModel):

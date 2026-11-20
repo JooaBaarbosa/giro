@@ -146,3 +146,86 @@ def test_history_shows_store_local_time(client, session, make_product):
     html = client.get(f"/products/{p.id}").text
     assert "21/10 23:30" in html
     assert "22/10 02:30" not in html
+
+
+def test_create_product_with_price_and_barcode_via_form(client, session, make_supplier):
+    supplier = make_supplier()
+    r = client.post(
+        "/products",
+        data={
+            "sku": "ARR5",
+            "name": "Arroz 5kg",
+            "unit": "un",
+            "supplier_id": supplier.id,
+            "min_stock": "10",
+            "cover_days": "15",
+            "barcode": "7891000100103",
+            "sale_price": "12,90",
+            "cost_price": "8,00",
+        },
+    )
+    assert r.status_code == 200
+    p = session.scalars(select(Product)).one()
+    assert p.barcode == "7891000100103"
+    assert p.sale_price == Decimal("12.90")
+    assert p.cost_price == Decimal("8.00")
+    assert "R$ 12,90" in client.get("/products").text
+
+
+def test_create_product_invalid_barcode_shows_error(client, make_supplier):
+    r = client.post(
+        "/products",
+        data={
+            "sku": "X",
+            "name": "X",
+            "unit": "un",
+            "supplier_id": make_supplier().id,
+            "min_stock": "1",
+            "barcode": "123",
+        },
+    )
+    assert r.status_code == 422
+    assert "Código de barras inválido" in r.text
+
+
+def test_create_product_duplicate_barcode(client, make_product):
+    p = make_product(barcode="7891000100103")
+    r = client.post(
+        "/products",
+        data={
+            "sku": "Y",
+            "name": "Y",
+            "unit": "un",
+            "supplier_id": p.supplier_id,
+            "min_stock": "1",
+            "barcode": "7891000100103",
+        },
+    )
+    assert "Código de barras já cadastrado em outro produto." in r.text
+
+
+def test_detail_without_sale_price_warns(client, make_product):
+    p = make_product()
+    html = client.get(f"/products/{p.id}").text
+    assert "Sem preço de venda: não pode ser vendido no caixa." in html
+
+
+def test_detail_with_sale_price_has_no_warning_and_edit_saves(client, session, make_product):
+    p = make_product(sale_price=Decimal("5.00"))
+    assert "Sem preço de venda" not in client.get(f"/products/{p.id}").text
+    r = client.post(
+        f"/products/{p.id}",
+        data={
+            "name": p.name,
+            "supplier_id": p.supplier_id,
+            "min_stock": "10",
+            "cover_days": "15",
+            "active": "on",
+            "barcode": "",
+            "sale_price": "",
+            "cost_price": "3,50",
+        },
+    )
+    assert r.status_code == 200
+    session.refresh(p)
+    assert p.sale_price is None and p.cost_price == Decimal("3.50")

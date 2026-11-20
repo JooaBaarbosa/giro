@@ -1,5 +1,6 @@
 """Telas de movimentação, produtos e fornecedores."""
 
+from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Form, Request
@@ -115,6 +116,10 @@ def products_page(request: Request, s: SessionDep) -> HTMLResponse:
     )
 
 
+def _optional_money(raw: str) -> Decimal | str | None:
+    return parse_decimal(raw) if raw.strip() else None
+
+
 def _product_form(
     request: Request,
     s: SessionDep,
@@ -150,6 +155,9 @@ def product_create(
     supplier_id: Field = "",
     min_stock: Field = "",
     cover_days: Field = "15",
+    barcode: OptionalField = "",
+    sale_price: OptionalField = "",
+    cost_price: OptionalField = "",
 ) -> Response:
     form = {
         "sku": sku,
@@ -158,10 +166,20 @@ def product_create(
         "supplier_id": supplier_id,
         "min_stock": min_stock,
         "cover_days": cover_days,
+        "barcode": barcode,
+        "sale_price": sale_price,
+        "cost_price": cost_price,
     }
     try:
         data = ProductIn.model_validate(
-            form | {"sku": sku.strip(), "name": name.strip(), "min_stock": parse_decimal(min_stock)}
+            form
+            | {
+                "sku": sku.strip(),
+                "name": name.strip(),
+                "min_stock": parse_decimal(min_stock),
+                "sale_price": _optional_money(sale_price),
+                "cost_price": _optional_money(cost_price),
+            }
         )
         product = service.create_product(s, data)
         s.commit()
@@ -173,6 +191,10 @@ def product_create(
             request, s, form=form, errors={"__all__": exc.message}, status_code=422
         )
     return _see_other(f"/products/{product.id}")
+
+
+def _money_input(value: Decimal | None) -> str:
+    return "" if value is None else f"{value:.2f}".replace(".", ",")
 
 
 def _product_detail(
@@ -204,6 +226,9 @@ def _product_detail(
             "min_stock": br_number(product.min_stock),
             "cover_days": product.cover_days,
             "active": product.active,
+            "barcode": product.barcode or "",
+            "sale_price": _money_input(product.sale_price),
+            "cost_price": _money_input(product.cost_price),
         },
         errors=errors or {},
         nav="products",
@@ -231,6 +256,9 @@ def product_update(
     min_stock: Field = "",
     cover_days: Field = "",
     active: OptionalField = "",
+    barcode: OptionalField = "",
+    sale_price: OptionalField = "",
+    cost_price: OptionalField = "",
 ) -> Response:
     form = {
         "name": name,
@@ -238,10 +266,19 @@ def product_update(
         "min_stock": min_stock,
         "cover_days": cover_days,
         "active": active == "on",
+        "barcode": barcode,
+        "sale_price": sale_price,
+        "cost_price": cost_price,
     }
     try:
         data = ProductUpdate.model_validate(
-            form | {"name": name.strip(), "min_stock": parse_decimal(min_stock)}
+            form
+            | {
+                "name": name.strip(),
+                "min_stock": parse_decimal(min_stock),
+                "sale_price": _optional_money(sale_price),
+                "cost_price": _optional_money(cost_price),
+            }
         )
         service.update_product(s, product_id, data)
         s.commit()

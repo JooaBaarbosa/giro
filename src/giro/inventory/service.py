@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from giro.errors import DuplicateSku, InsufficientStock, InvalidInput, NotFound
+from giro.errors import DomainError, DuplicateSku, InsufficientStock, InvalidInput, NotFound
 from giro.fmt import br_number
 from giro.inventory.schemas import (
     MovementIn,
@@ -57,19 +57,48 @@ def list_suppliers(s: Session, *, include_inactive: bool = False) -> list[Suppli
     return list(s.scalars(stmt))
 
 
+BARCODE_TAKEN = "Código de barras já cadastrado em outro produto."
+
+
+def _ensure_barcode_free(s: Session, barcode: str, *, exclude_id: int | None = None) -> None:
+    stmt = select(Product.id).where(Product.barcode == barcode)
+    if exclude_id is not None:
+        stmt = stmt.where(Product.id != exclude_id)
+    if s.scalar(stmt) is not None:
+        raise InvalidInput(BARCODE_TAKEN)
+
+
+def _integrity_error(exc: IntegrityError) -> DomainError:
+    if "ux_products_barcode" in str(exc.orig):
+        return InvalidInput(BARCODE_TAKEN)
+    return DuplicateSku("SKU já cadastrado.")
+
+
 def create_product(s: Session, data: ProductIn) -> Product:
     if s.scalar(select(Product.id).where(Product.sku == data.sku)) is not None:
         raise DuplicateSku("SKU já cadastrado.")
+    if data.barcode is not None:
+        _ensure_barcode_free(s, data.barcode)
     get_supplier(s, data.supplier_id)
     product = Product(**data.model_dump(), current_stock=Decimal(0))
     try:
-        # savepoint: um cadastro concorrente com o mesmo SKU vira erro de domínio, não 500
+        # savepoint: um cadastro concorrente com o mesmo SKU/código vira erro de domínio, não 500
         with s.begin_nested():
             s.add(product)
             s.flush()
     except IntegrityError as exc:
-        raise DuplicateSku("SKU já cadastrado.") from exc
+        raise _integrity_error(exc) from exc
     return product
+
+
+def find_product_by_code(s: Session, code: str) -> Product:
+    """Produto ativo pelo código de barras exato; se não houver, pelo SKU exato."""
+    code = code.strip()
+    for column in (Product.barcode, Product.sku):
+        product = s.scalar(select(Product).where(column == code, Product.active))
+        if product is not None:
+            return product
+    raise NotFound("Produto não encontrado.")
 
 
 def get_product(s: Session, product_id: int) -> Product:
@@ -79,16 +108,30 @@ def get_product(s: Session, product_id: int) -> Product:
     return product
 
 
+_CLEARABLE = frozenset({"barcode", "sale_price", "cost_price"})
+
+
 def update_product(s: Session, product_id: int, data: ProductUpdate) -> Product:
     product = get_product(s, product_id)
-    changes = data.model_dump(exclude_unset=True, exclude_none=True)
+    # barcode e preços aceitam None explícito (limpar o campo); os demais ignoram None
+    changes = {
+        k: v
+        for k, v in data.model_dump(exclude_unset=True).items()
+        if v is not None or k in _CLEARABLE
+    }
     if "supplier_id" in changes:
         get_supplier(s, changes["supplier_id"])
+    if changes.get("barcode") is not None:
+        _ensure_barcode_free(s, changes["barcode"], exclude_id=product.id)
     if changes.get("unit", product.unit) is not product.unit:
         _ensure_unit_change_allowed(s, product, changes["unit"])
     for key, value in changes.items():
         setattr(product, key, value)
-    s.flush()
+    try:
+        with s.begin_nested():
+            s.flush()
+    except IntegrityError as exc:
+        raise _integrity_error(exc) from exc
     return product
 
 

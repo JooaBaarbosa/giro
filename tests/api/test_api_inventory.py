@@ -83,3 +83,43 @@ def test_patch_product(client, auth, make_product):
     r = client.patch(f"/api/products/{p.id}", headers=auth, json={"min_stock": "3"})
     assert r.status_code == 200
     assert Decimal(r.json()["min_stock"]) == 3
+
+
+def test_create_product_with_price_and_barcode(client, auth, make_product):
+    p = make_product()
+    r = client.post(
+        "/api/products",
+        headers=auth,
+        json={
+            "sku": "P1",
+            "name": "Arroz",
+            "unit": "un",
+            "supplier_id": p.supplier_id,
+            "min_stock": "1",
+            "sale_price": "12.90",
+            "cost_price": "8.00",
+            "barcode": "7891000100103",
+        },
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert Decimal(body["sale_price"]) == Decimal("12.90")
+    assert Decimal(body["cost_price"]) == Decimal("8.00")
+    assert body["barcode"] == "7891000100103"
+
+
+def test_invalid_barcode_is_422(client, auth, make_product):
+    p = make_product()
+    r = client.post(
+        "/api/products",
+        headers=auth,
+        json={
+            "sku": "P1",
+            "name": "X",
+            "unit": "un",
+            "supplier_id": p.supplier_id,
+            "min_stock": "1",
+            "barcode": "123",
+        },
+    )
+    assert r.status_code == 422
