@@ -1,3 +1,4 @@
+import threading
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -166,3 +167,34 @@ def test_item_of_non_open_sale_refused(session, cash, make_product):
         remove_item(session, item.id)
     with pytest.raises(InvalidTransition):
         set_item_quantity(session, item.id, ItemQtyIn(quantity=D("2")))
+
+
+def test_concurrent_first_add_reuses_one_sale(engine, session, cash, make_product):
+    make_product(sku="ARR5", sale_price=D("5.00"))
+    session.commit()
+    barrier = threading.Barrier(2)
+    errors: list[Exception] = []
+
+    def worker() -> None:
+        with Session(engine) as s:
+            barrier.wait()
+            try:
+                add_item(s, AddItemIn(code="ARR5"), now=NOW)
+                s.commit()
+            except Exception as exc:  # noqa: BLE001
+                s.rollback()
+                errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []
+    session.rollback()
+    sales = session.scalars(select(Sale)).all()
+    assert len(sales) == 1
+    assert sales[0].status is SaleStatus.OPEN
+    assert len(sales[0].items) == 1
+    assert sales[0].items[0].quantity == D("2")
+    assert sales[0].total == D("10.00")

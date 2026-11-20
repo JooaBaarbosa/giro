@@ -107,16 +107,36 @@ def add_cash_movement(s: Session, data: CashMovementIn, *, now: datetime) -> Cas
     return movement
 
 
-def current_sale(s: Session) -> Sale | None:
-    return s.scalar(select(Sale).where(Sale.status == SaleStatus.OPEN))
+def current_sale(s: Session, *, fresh: bool = False) -> Sale | None:
+    stmt = select(Sale).where(Sale.status == SaleStatus.OPEN)
+    if fresh:
+        stmt = stmt.execution_options(populate_existing=True)
+    sale = s.scalar(stmt)
+    if sale is not None and fresh:
+        s.expire(sale, ["items"])
+    return sale
 
 
 def _recalc_total(sale: Sale) -> None:
     sale.total = sum((item.line_total for item in sale.items), Decimal(0))
 
 
+def _new_sale(s: Session, session_id: int, now: datetime) -> Sale:
+    sale = Sale(session_id=session_id, created_at=now)
+    try:
+        with s.begin_nested():
+            s.add(sale)
+            s.flush()
+    except IntegrityError:
+        existing = current_sale(s, fresh=True)
+        if existing is None:
+            raise
+        return existing
+    return sale
+
+
 def add_item(s: Session, data: AddItemIn, *, now: datetime) -> SaleItem:
-    session = require_session(s)
+    session = require_session(s, lock=True)
     product = find_product_by_code(s, data.code)
     if product.sale_price is None:
         raise InvalidInput("Produto sem preço de venda: cadastre o preço antes de vender.")
@@ -126,11 +146,9 @@ def add_item(s: Session, data: AddItemIn, *, now: datetime) -> SaleItem:
             raise InvalidInput(f"Informe o peso para {product.name}.")
         quantity = Decimal(1)
     ensure_quantity_fits_unit(quantity, product.unit)
-    sale = current_sale(s)
+    sale = current_sale(s, fresh=True)
     if sale is None:
-        sale = Sale(session_id=session.id, created_at=now)
-        s.add(sale)
-        s.flush()
+        sale = _new_sale(s, session.id, now)
     item = next((i for i in sale.items if i.product_id == product.id), None)
     if item is None:
         item = SaleItem(
@@ -154,10 +172,15 @@ def add_item(s: Session, data: AddItemIn, *, now: datetime) -> SaleItem:
 
 
 def _open_sale_item(s: Session, item_id: int) -> tuple[Sale, SaleItem]:
-    item = s.get(SaleItem, item_id)
+    require_session(s, lock=True)
+    item = s.scalar(
+        select(SaleItem).where(SaleItem.id == item_id).execution_options(populate_existing=True)
+    )
     if item is None:
         raise NotFound("Item não encontrado.")
     sale = item.sale
+    s.refresh(sale)
+    s.expire(sale, ["items"])
     if sale.status is not SaleStatus.OPEN:
         raise InvalidTransition("A venda não está em aberto.")
     return sale, item
@@ -182,7 +205,8 @@ def remove_item(s: Session, item_id: int) -> None:
 
 
 def discard_sale(s: Session) -> None:
-    sale = current_sale(s)
+    require_session(s, lock=True)
+    sale = current_sale(s, fresh=True)
     if sale is not None:
         s.delete(sale)
         s.flush()
