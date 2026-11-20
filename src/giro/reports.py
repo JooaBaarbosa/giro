@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from giro.forecast import WINDOW_DAYS, Forecast, compute_forecast
 from giro.models import (
+    CashSession,
     MovementKind,
     OrderStatus,
     PaymentMethod,
@@ -220,6 +221,7 @@ class SalesKpis:
     items_with_cost: int
     items_month: int
     by_method_month: dict[PaymentMethod, Decimal]
+    demo_sales_month: int
 
 
 _CENT = Decimal("0.01")
@@ -260,6 +262,13 @@ def sales_kpis(s: Session, *, now: datetime, tz: str) -> SalesKpis:
     change = s.scalar(select(func.sum(Sale.change_given)).where(*in_month)) or Decimal(0)
     by_method[PaymentMethod.CASH] = (by_method[PaymentMethod.CASH] - change).quantize(_CENT)
 
+    demo_sales = s.scalar(
+        select(func.count())
+        .select_from(Sale)
+        .join(CashSession, Sale.session_id == CashSession.id)
+        .where(*in_month, CashSession.is_demo)
+    )
+
     return SalesKpis(
         revenue_today=revenue_today,
         revenue_month=revenue_month,
@@ -269,4 +278,5 @@ def sales_kpis(s: Session, *, now: datetime, tz: str) -> SalesKpis:
         items_with_cost=len(with_cost),
         items_month=len(items),
         by_method_month=by_method,
+        demo_sales_month=demo_sales or 0,
     )

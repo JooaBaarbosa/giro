@@ -35,6 +35,7 @@
       focusEntry();
     } else if (event.key === "F4") {
       event.preventDefault();
+      if (document.getElementById("weight")) return;
       var form = document.getElementById("finish-form");
       if (form) form.requestSubmit();
     } else if (event.key === "Escape") {

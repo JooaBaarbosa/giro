@@ -31,6 +31,7 @@
 <section class="card">
   <div class="card-head">
     <h2>Vendas</h2>
+    {% if sales.demo_sales_month > 0 %}<p class="muted">Inclui vendas de demonstração.</p>{% endif %}
   </div>
   <div class="kpis">
     <div class="kpi">

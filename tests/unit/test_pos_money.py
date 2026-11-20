@@ -27,7 +27,7 @@ def test_change_only_from_cash():
 
 
 def test_underpaid_refused():
-    with pytest.raises(PaymentMismatch, match="Faltam R\$ 5,00"):
+    with pytest.raises(PaymentMismatch, match=r"Faltam R\$ 5,00"):
         compute_change(Decimal("30.00"), [(PIX, Decimal("25.00"))])
 
 

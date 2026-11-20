@@ -57,10 +57,10 @@ def test_chart_series_embedded(client, make_product):
     assert len(json.loads(match.group(1))["labels"]) == 30
 
 
-def _complete_sale(session, product, *, unit_cost):
+def _complete_sale(session, product, *, unit_cost, demo=False):
     from giro.models import CashSession, PaymentMethod, Sale, SaleItem, SalePayment, SaleStatus
 
-    cs = CashSession(opening_amount=Decimal(0))
+    cs = CashSession(opening_amount=Decimal(0), is_demo=demo)
     session.add(cs)
     session.flush()
     session.add(
@@ -125,3 +125,13 @@ def test_overview_margin_without_cost(client, session, make_product):
     html = client.get("/").text
     assert "sem custo cadastrado" in html
     assert "R$ 20,00" in html
+
+
+def test_overview_labels_demo_sales(client, session, make_product):
+    _complete_sale(session, make_product(), unit_cost=None, demo=True)
+    assert "Inclui vendas de demonstração." in client.get("/").text
+
+
+def test_overview_no_demo_label_without_demo_sales(client, session, make_product):
+    _complete_sale(session, make_product(), unit_cost=None)
+    assert "Inclui vendas de demonstração." not in client.get("/").text

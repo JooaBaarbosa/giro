@@ -18,7 +18,7 @@ from giro.api.deps import NowDep, SessionDep
 from giro.errors import DomainError, InsufficientStock, InvalidInput, Shortage
 from giro.fmt import brl
 from giro.inventory.service import find_product_by_code
-from giro.models import CashMovementKind, Sale, SaleStatus, Unit
+from giro.models import CashMovementKind, PaymentMethod, Sale, SaleStatus, Unit
 from giro.pos import service
 from giro.pos.codes import parse_entry
 from giro.pos.schemas import (
@@ -63,6 +63,8 @@ def _context(
     payments = list(sale.payments) if sale else []
     total = sale.total if sale else Decimal(0)
     paid = sum((p.amount for p in payments), Decimal(0))
+    cash_paid = sum((p.amount for p in payments if p.method is PaymentMethod.CASH), Decimal(0))
+    excess = paid - total
     remaining = max(total - paid, Decimal(0))
     return dict(
         cash_session=cash_session,
@@ -72,7 +74,7 @@ def _context(
         total=total,
         paid=paid,
         remaining=remaining,
-        change=paid - total if paid > total else Decimal(0),
+        change=excess if 0 < excess <= cash_paid else Decimal(0),
         pay_default=_money_input(remaining),
         over_stock=service.over_stock,
         error=error,

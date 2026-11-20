@@ -12,7 +12,7 @@
       {% for cs, summary in rows %}
       <tr>
         <td>{{ cs.opened_at | localdt }}</td>
-        <td>{{ cs.closed_at | localdt }}</td>
+        <td>{% if cs.closed_at %}{{ cs.closed_at | localdt }}{% else %}<span class="muted">em aberto</span>{% endif %}</td>
         <td>{{ "fechado" if cs.closed_at else "aberto" }}{% if cs.is_demo %} <span class="muted">Dados de demonstração</span>{% endif %}</td>
         <td class="num">{{ summary.sales_count }}</td>
         <td class="num">{{ summary.sales_total | brl }}</td>

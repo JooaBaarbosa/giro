@@ -348,3 +348,28 @@ def test_sale_of_closed_session_has_no_cancel_form(client, session, open_cash, a
     _sell(client, session)
     client.post("/caixa/fechar", data={"counted_amount": "125,00"})
     assert "/caixa/vendas/1/cancelar" not in client.get("/caixa/vendas/1").text
+
+
+def test_sessions_list_open_session_has_no_em_dash(client, open_cash):
+    html = client.get("/caixa/turnos").text
+    table = html[html.index("<table") : html.index("</table>")]
+    assert "em aberto" in table
+    assert "—" not in table
+
+
+def test_sale_detail_labels_demo_session(client, session, open_cash, arroz):
+    _sell(client, session)
+    assert "Dados de demonstração." not in client.get("/caixa/vendas/1").text
+    service.current_session(session).is_demo = True
+    session.commit()
+    assert "Dados de demonstração." in client.get("/caixa/vendas/1").text
+
+
+def test_no_change_preview_when_excess_is_not_cash(client, open_cash, arroz, tomate):
+    _add(client, "ARR5")
+    _add(client, "1*TOM")
+    client.post("/caixa/pagamentos", data={"method": "pix", "amount": "33,00"})
+    html = client.post("/caixa/itens/2/remover").text
+    assert "Arroz 5kg" in html
+    assert "Tomate" not in html
+    assert "Troco" not in html

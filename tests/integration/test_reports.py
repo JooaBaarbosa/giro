@@ -257,3 +257,20 @@ def test_sales_kpis_without_sales(session):
     assert k.items_month == 0
     assert set(k.by_method_month) == set(PaymentMethod)
     assert all(v == Decimal("0.00") for v in k.by_method_month.values())
+
+
+def test_sales_kpis_counts_demo_completed_sales(session, make_product):
+    p = make_product()
+    real = CashSession(opening_amount=Decimal(0), closed_at=NOW)
+    demo = CashSession(opening_amount=Decimal(0), is_demo=True)
+    session.add_all([real, demo])
+    session.flush()
+    at = datetime(2026, 10, 22, 13, 0, tzinfo=UTC)
+    kwargs = dict(at=at, lines=[("1", "10.00", None)], payments=[(PaymentMethod.PIX, "10.00")])
+    make_sale(session, real, p, **kwargs)
+    make_sale(session, demo, p, **kwargs)
+    make_sale(session, demo, p, **kwargs)
+    make_sale(session, demo, p, status=SaleStatus.CANCELLED, **kwargs)
+    make_sale(session, demo, p, **{**kwargs, "at": datetime(2026, 9, 30, 15, 0, tzinfo=UTC)})
+
+    assert sales_kpis(session, now=NOW, tz=TZ).demo_sales_month == 2

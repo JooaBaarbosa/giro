@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head">
   <h1>Venda #{{ sale.id }}</h1>
-  <p class="muted">Situação: {{ SALE_STATUS_LABELS[sale.status] }}. <a href="/caixa/turnos/{{ sale.session_id }}">Voltar ao turno</a></p>
+  <p class="muted">Situação: {{ SALE_STATUS_LABELS[sale.status] }}.{% if sale.session.is_demo %} Dados de demonstração.{% endif %} <a href="/caixa/turnos/{{ sale.session_id }}">Voltar ao turno</a></p>
 </div>
 {% if sale.status.value == "cancelled" %}
 <div class="card">

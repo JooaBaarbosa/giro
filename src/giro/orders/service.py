@@ -244,7 +244,7 @@ def mark_failed(s: Session, order_id: int, data: FailedIn) -> PurchaseOrder:
 def receive(s: Session, order_id: int, *, now: datetime) -> PurchaseOrder:
     order = _lock_order(s, order_id)
     ensure_transition(order.status, OrderStatus.RECEIVED)
-    for item in order.items:
+    for item in sorted(order.items, key=lambda i: i.product_id):
         record_movement(
             s,
             MovementIn(

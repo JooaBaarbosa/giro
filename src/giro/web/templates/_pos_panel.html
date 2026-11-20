@@ -115,8 +115,8 @@
           <div class="form-row">
             <label for="pay-method">Forma</label>
             <select id="pay-method" name="method">
-              {% for value, label in [("cash", "Dinheiro"), ("pix", "Pix"), ("credit", "Crédito"), ("debit", "Débito")] %}
-              <option value="{{ value }}">{{ label }}</option>
+              {% for method, label in METHOD_LABELS.items() %}
+              <option value="{{ method.value }}">{{ label }}</option>
               {% endfor %}
             </select>
           </div>
