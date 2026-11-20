@@ -12,6 +12,7 @@
   <header class="topbar">
     <a class="brand" href="/"><span class="brand-mark">↻</span> Giro</a>
     <nav>
+      <a href="/caixa" {% if nav == "pos" %}aria-current="page"{% endif %}>Caixa</a>
       <a href="/" {% if nav == "overview" %}aria-current="page"{% endif %}>Visão geral</a>
       <a href="/movements/new" {% if nav == "movements" %}aria-current="page"{% endif %}>Registrar</a>
       <a href="/orders" {% if nav == "orders" %}aria-current="page"{% endif %}>Pedidos</a>

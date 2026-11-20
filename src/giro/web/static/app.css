@@ -193,3 +193,48 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
   margin: 12px 0 0;
 }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+
+/* PDV (/caixa) */
+.pos { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .pos { grid-template-columns: 1fr; } }
+.pos-entry label { display: block; font-weight: 500; margin-bottom: 4px; }
+.pos-entry-row { display: flex; gap: 8px; }
+.pos-entry-row input { flex: 1; font-size: 22px; padding: 12px 14px; font-family: var(--mono); }
+.pos-entry-row .btn { font-size: 16px; }
+.pos-messages { margin: 12px 0 0; }
+.pos-messages:empty { margin: 0; }
+.pos-cart table td { font-size: 17px; }
+.pos-warn { display: block; color: var(--yellow); font-size: 13px; }
+.pos-last { background: var(--yellow-bg); }
+.pos-last.pos-last-fade { background: transparent; transition: background-color 1.6s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .pos-last.pos-last-fade { transition: none; }
+}
+.pos-total { display: flex; flex-direction: column; gap: 4px; }
+.pos-total-value { font: 700 44px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.pos-payments { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+.pos-payments li { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.pos-payments .num { font-family: var(--mono); margin-left: auto; }
+.pos-line { display: flex; justify-content: space-between; margin: 8px 0; font-size: 18px; }
+.pos-line .num { font-family: var(--mono); }
+.pos-change strong { color: var(--green); }
+.pos-actions { display: grid; gap: 8px; }
+.pos-actions .btn { justify-content: center; width: 100%; }
+.pos-finish { font-size: 20px; padding: 14px; }
+.pos-subpanel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px; }
+.pos-subpanel summary { cursor: pointer; font-weight: 500; }
+.pos-subpanel .form { margin-top: 12px; }
+.pos-sub { margin-top: 12px; }
+.pos-shortages { margin-top: 12px; border-color: var(--red); }
+.pos-shortage { margin-top: 12px; }
+.pos-done { font-size: 18px; font-weight: 600; }
+.pos-keys { font-size: 13px; }
+kbd {
+  font: 12px var(--mono);
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--muted);
+}
+.btn-primary kbd { background: transparent; color: inherit; border-color: currentColor; }

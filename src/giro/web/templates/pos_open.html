@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Abrir caixa{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Abrir caixa</h1>
+  <p class="muted">Informe o troco inicial em dinheiro para começar o turno.</p>
+</div>
+<form class="form card" method="post" action="/caixa/abrir">
+  {% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
+  <div class="form-row">
+    <label for="opening_amount">Troco inicial (R$)</label>
+    <input id="opening_amount" name="opening_amount" inputmode="decimal" value="0,00" autofocus required>
+  </div>
+  <div><button class="btn btn-primary" type="submit">Abrir caixa</button></div>
+</form>
+{% endblock %}

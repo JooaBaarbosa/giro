@@ -18,6 +18,8 @@ from giro.forecast import Forecast
 from giro.models import MovementKind, Unit
 from giro.orders.message import format_qty
 from giro.orders.state import STATUS_LABELS as ORDER_STATUS_LABELS
+from giro.pos.state import METHOD_LABELS
+from giro.pos.state import STATUS_LABELS as SALE_STATUS_LABELS
 from giro.reports import StockStatus
 
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -74,6 +76,8 @@ templates.env.globals.update(
     STATUS_LABELS=STATUS_LABELS,
     KIND_LABELS=KIND_LABELS,
     ORDER_STATUS_LABELS=ORDER_STATUS_LABELS,
+    METHOD_LABELS=METHOD_LABELS,
+    SALE_STATUS_LABELS=SALE_STATUS_LABELS,
     next_purchase_label=next_purchase_label,
 )
 

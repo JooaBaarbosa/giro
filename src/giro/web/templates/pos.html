@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Caixa{% endblock %}
+{% block content %}
+<div id="pos-panel" hx-target="#pos-panel" hx-swap="innerHTML">
+  {% include "_pos_panel.html" %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/pos.js" defer></script>{% endblock %}
