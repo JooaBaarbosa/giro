@@ -3,8 +3,19 @@ from decimal import Decimal
 
 from giro.inventory.schemas import MovementIn
 from giro.inventory.service import record_movement
-from giro.models import OrderStatus, PurchaseOrder
-from giro.reports import StockStatus, daily_sales, overview
+from giro.models import (
+    CashSession,
+    MovementKind,
+    OrderStatus,
+    PaymentMethod,
+    PurchaseOrder,
+    Sale,
+    SaleItem,
+    SalePayment,
+    SaleStatus,
+    StockMovement,
+)
+from giro.reports import StockStatus, daily_sales, overview, sales_kpis
 
 NOW = datetime(2026, 10, 22, 15, 0, tzinfo=UTC)  # 12:00 em São Paulo
 TZ = "America/Sao_Paulo"
@@ -109,3 +120,140 @@ def test_search_and_inactive_excluded(session, make_product):
     assert names == ["Arroz 5kg"]
     names = [r.product.name for r in overview(session, now=NOW, tz=TZ, search="ole9").rows]
     assert names == ["Óleo 900ml"]
+
+
+def cancel_movement(session, product, qty, at: datetime) -> None:
+    session.add(
+        StockMovement(
+            product_id=product.id,
+            kind=MovementKind.SALE_CANCEL,
+            quantity=Decimal(qty),
+            occurred_at=at,
+        )
+    )
+    session.flush()
+
+
+def test_cancelled_sale_is_netted_from_outflow(session, make_product):
+    p = make_product(current_stock=Decimal(100))
+    sell(session, p, 5, datetime(2026, 10, 22, 13, 0, tzinfo=UTC))
+    cancel_movement(session, p, 2, datetime(2026, 10, 22, 14, 0, tzinfo=UTC))
+
+    ov = overview(session, now=NOW, tz=TZ)
+    assert ov.rows[0].sold_today == 3
+    assert ov.sold_month == 3
+    assert daily_sales(session, now=NOW, tz=TZ)[-1][1] == 3
+
+
+def make_sale(
+    session,
+    cash_session,
+    product,
+    *,
+    at: datetime,
+    lines: list[tuple[str, str, str | None]],
+    payments: list[tuple[PaymentMethod, str]],
+    change: str = "0",
+    status: SaleStatus = SaleStatus.COMPLETED,
+) -> Sale:
+    items = []
+    for qty, price, cost in lines:
+        q, pr = Decimal(qty), Decimal(price)
+        items.append(
+            SaleItem(
+                product_id=product.id,
+                quantity=q,
+                unit_price=pr,
+                unit_cost=None if cost is None else Decimal(cost),
+                line_total=(q * pr).quantize(Decimal("0.01")),
+            )
+        )
+    sale = Sale(
+        session_id=cash_session.id,
+        status=status,
+        total=sum((i.line_total for i in items), Decimal(0)),
+        change_given=Decimal(change),
+        completed_at=at,
+        items=items,
+        payments=[SalePayment(method=m, amount=Decimal(a)) for m, a in payments],
+    )
+    session.add(sale)
+    session.flush()
+    return sale
+
+
+def test_sales_kpis(session, make_product):
+    p = make_product()
+    cs = CashSession(opening_amount=Decimal(0))
+    session.add(cs)
+    session.flush()
+    today = datetime(2026, 10, 22, 13, 0, tzinfo=UTC)
+    # hoje: 2 x 10,00 (custo 6,00) + 1 x 5,00 sem custo = 25,00; paga 30 em dinheiro, troco 5
+    make_sale(
+        session,
+        cs,
+        p,
+        at=today,
+        lines=[("2", "10.00", "6.00"), ("1", "5.00", None)],
+        payments=[(PaymentMethod.CASH, "30.00")],
+        change="5.00",
+    )
+    # início do mês: 1 x 15,00 (custo 4,005 arredonda 4,01) pago no pix
+    make_sale(
+        session,
+        cs,
+        p,
+        at=datetime(2026, 10, 3, 15, 0, tzinfo=UTC),
+        lines=[("1", "15.00", "4.01")],
+        payments=[(PaymentMethod.PIX, "15.00")],
+    )
+    # mês passado: fora
+    make_sale(
+        session,
+        cs,
+        p,
+        at=datetime(2026, 9, 30, 15, 0, tzinfo=UTC),
+        lines=[("1", "99.00", "1.00")],
+        payments=[(PaymentMethod.CREDIT, "99.00")],
+    )
+    # cancelada: fora
+    make_sale(
+        session,
+        cs,
+        p,
+        at=today,
+        lines=[("1", "50.00", "1.00")],
+        payments=[(PaymentMethod.DEBIT, "50.00")],
+        status=SaleStatus.CANCELLED,
+    )
+
+    k = sales_kpis(session, now=NOW, tz=TZ)
+
+    assert k.revenue_today == Decimal("25.00")
+    assert k.revenue_month == Decimal("40.00")
+    assert k.sales_month == 2
+    assert k.avg_ticket_month == Decimal("20.00")
+    assert k.items_month == 3
+    assert k.items_with_cost == 2
+    # (20,00 - 12,00) + (15,00 - 4,01)
+    assert k.margin_month == Decimal("18.99")
+    assert k.by_method_month == {
+        PaymentMethod.CASH: Decimal("25.00"),
+        PaymentMethod.PIX: Decimal("15.00"),
+        PaymentMethod.CREDIT: Decimal("0.00"),
+        PaymentMethod.DEBIT: Decimal("0.00"),
+    }
+
+
+def test_sales_kpis_without_sales(session):
+    k = sales_kpis(session, now=NOW, tz=TZ)
+
+    assert k.revenue_today == Decimal("0.00")
+    assert k.revenue_month == Decimal("0.00")
+    assert k.sales_month == 0
+    assert k.avg_ticket_month is None
+    assert k.margin_month is None
+    assert k.items_with_cost == 0
+    assert k.items_month == 0
+    assert set(k.by_method_month) == set(PaymentMethod)
+    assert all(v == Decimal("0.00") for v in k.by_method_month.values())

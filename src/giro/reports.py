@@ -8,11 +8,23 @@ from decimal import Decimal
 from enum import StrEnum
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from giro.forecast import WINDOW_DAYS, Forecast, compute_forecast
-from giro.models import MovementKind, OrderStatus, Product, PurchaseOrder, StockMovement
+from giro.models import (
+    MovementKind,
+    OrderStatus,
+    PaymentMethod,
+    Product,
+    PurchaseOrder,
+    Sale,
+    SaleItem,
+    SalePayment,
+    SaleStatus,
+    StockMovement,
+)
+from giro.pos.money import line_total
 
 YELLOW_DAYS = 7
 
@@ -49,14 +61,27 @@ def _local_day(tz: str):  # type: ignore[no-untyped-def]
     return func.date(func.timezone(tz, StockMovement.occurred_at))
 
 
+def _net_quantity() -> ColumnElement[Decimal]:
+    """Saída líquida: venda soma, cancelamento de venda subtrai."""
+    return func.sum(
+        case(
+            (StockMovement.kind == MovementKind.SALE, StockMovement.quantity),
+            else_=-StockMovement.quantity,
+        )
+    )
+
+
+_NET_KINDS = (MovementKind.SALE, MovementKind.SALE_CANCEL)
+
+
 def _sales_by_day(
     s: Session, *, tz: str, since: date, product_ids: Collection[int] | None
 ) -> dict[int, dict[date, Decimal]]:
     day = _local_day(tz)
     start = datetime.combine(since, time.min, tzinfo=ZoneInfo(tz))
     stmt = (
-        select(StockMovement.product_id, day, func.sum(StockMovement.quantity))
-        .where(StockMovement.kind == MovementKind.SALE, StockMovement.occurred_at >= start)
+        select(StockMovement.product_id, day, _net_quantity())
+        .where(StockMovement.kind.in_(_NET_KINDS), StockMovement.occurred_at >= start)
         .group_by(StockMovement.product_id, day)
     )
     if product_ids is not None:
@@ -172,8 +197,8 @@ def daily_sales(
     day = _local_day(tz)
     start = datetime.combine(since, time.min, tzinfo=ZoneInfo(tz))
     stmt = (
-        select(day, func.sum(StockMovement.quantity))
-        .where(StockMovement.kind == MovementKind.SALE, StockMovement.occurred_at >= start)
+        select(day, _net_quantity())
+        .where(StockMovement.kind.in_(_NET_KINDS), StockMovement.occurred_at >= start)
         .group_by(day)
     )
     if product_id is not None:
@@ -183,3 +208,65 @@ def daily_sales(
         (since + timedelta(days=i), totals.get(since + timedelta(days=i), Decimal(0)))
         for i in range(days)
     ]
+
+
+@dataclass(frozen=True)
+class SalesKpis:
+    revenue_today: Decimal
+    revenue_month: Decimal
+    sales_month: int
+    avg_ticket_month: Decimal | None
+    margin_month: Decimal | None
+    items_with_cost: int
+    items_month: int
+    by_method_month: dict[PaymentMethod, Decimal]
+
+
+_CENT = Decimal("0.01")
+
+
+def sales_kpis(s: Session, *, now: datetime, tz: str) -> SalesKpis:
+    """Indicadores de vendas concluídas (não canceladas), por dia local de `completed_at`."""
+    today = local_today(now, tz)
+    month_start = today.replace(day=1)
+    day = func.date(func.timezone(tz, Sale.completed_at))
+    in_month = (Sale.status == SaleStatus.COMPLETED, day >= month_start, day <= today)
+
+    sales = s.execute(select(Sale.total, day).where(*in_month)).all()
+    revenue_month = sum((total for total, _ in sales), Decimal(0)).quantize(_CENT)
+    revenue_today = sum((total for total, d in sales if d == today), Decimal(0)).quantize(_CENT)
+    avg = (revenue_month / len(sales)).quantize(_CENT) if sales else None
+
+    items = s.execute(
+        select(SaleItem.quantity, SaleItem.unit_cost, SaleItem.line_total)
+        .join(Sale, SaleItem.sale_id == Sale.id)
+        .where(*in_month)
+    ).all()
+    with_cost = [(q, c, lt) for q, c, lt in items if c is not None]
+    margin = (
+        sum((lt - line_total(q, c) for q, c, lt in with_cost), Decimal(0)).quantize(_CENT)
+        if with_cost
+        else None
+    )
+
+    by_method = {m: Decimal("0.00") for m in PaymentMethod}
+    for method, amount in s.execute(
+        select(SalePayment.method, func.sum(SalePayment.amount))
+        .join(Sale, SalePayment.sale_id == Sale.id)
+        .where(*in_month)
+        .group_by(SalePayment.method)
+    ):
+        by_method[method] = amount
+    change = s.scalar(select(func.sum(Sale.change_given)).where(*in_month)) or Decimal(0)
+    by_method[PaymentMethod.CASH] = (by_method[PaymentMethod.CASH] - change).quantize(_CENT)
+
+    return SalesKpis(
+        revenue_today=revenue_today,
+        revenue_month=revenue_month,
+        sales_month=len(sales),
+        avg_ticket_month=avg,
+        margin_month=margin,
+        items_with_cost=len(with_cost),
+        items_month=len(items),
+        by_method_month=by_method,
+    )
