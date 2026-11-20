@@ -187,7 +187,11 @@ def _lock_product(s: Session, product_id: int) -> Product:
 
 
 def record_movement(
-    s: Session, data: MovementIn, *, purchase_order_id: int | None = None
+    s: Session,
+    data: MovementIn,
+    *,
+    purchase_order_id: int | None = None,
+    sale_id: int | None = None,
 ) -> StockMovement:
     product = _lock_product(s, data.product_id)
     ensure_quantity_fits_unit(data.quantity, product.unit)
@@ -208,6 +212,7 @@ def record_movement(
         occurred_at=data.occurred_at or datetime.now(UTC),
         note=data.note,
         purchase_order_id=purchase_order_id,
+        sale_id=sale_id,
     )
     s.add(movement)
     s.flush()

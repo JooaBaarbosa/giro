@@ -8,29 +8,48 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from giro.errors import (
+    InsufficientStock,
     InvalidInput,
     InvalidTransition,
     NoOpenSession,
     NotFound,
     SessionAlreadyOpen,
+    Shortage,
 )
 from giro.fmt import brl
-from giro.inventory.service import ensure_quantity_fits_unit, find_product_by_code
+from giro.inventory.schemas import MovementIn
+from giro.inventory.service import (
+    _lock_product,
+    ensure_quantity_fits_unit,
+    find_product_by_code,
+    record_movement,
+)
 from giro.models import (
     CashMovement,
     CashMovementKind,
     CashSession,
+    MovementKind,
     PaymentMethod,
     Sale,
     SaleItem,
     SalePayment,
     SaleStatus,
+    StockMovement,
     Unit,
 )
-from giro.pos.money import line_total
-from giro.pos.schemas import AddItemIn, CashMovementIn, ItemQtyIn, OpenSessionIn
+from giro.pos.money import compute_change, line_total, validate_new_payment
+from giro.pos.schemas import (
+    AddItemIn,
+    AdjustShortageIn,
+    CashMovementIn,
+    ItemQtyIn,
+    OpenSessionIn,
+    PaymentIn,
+)
+from giro.pos.state import ensure_transition
 
 ALREADY_OPEN = "Já existe um caixa aberto."
+NOT_SHORT = "Este item não está mais em falta."
 CLOSED = "O caixa está fechado. Abra o caixa para continuar."
 
 
@@ -214,3 +233,121 @@ def discard_sale(s: Session) -> None:
 
 def over_stock(item: SaleItem) -> bool:
     return item.quantity > item.product.current_stock
+
+
+NO_OPEN_SALE = "Não há venda em andamento."
+
+
+def _open_sale_locked(s: Session) -> Sale:
+    """Venda em aberto relida; o chamador já travou o turno (serializa o carrinho)."""
+    sale = current_sale(s, fresh=True)
+    if sale is None:
+        raise InvalidInput(NO_OPEN_SALE)
+    s.expire(sale, ["payments"])
+    return sale
+
+
+def add_payment(s: Session, data: PaymentIn) -> SalePayment:
+    require_session(s, lock=True)
+    sale = _open_sale_locked(s)
+    paid = [(p.method, p.amount) for p in sale.payments]
+    validate_new_payment(sale.total, paid, data.method, data.amount)
+    payment = SalePayment(sale=sale, method=data.method, amount=data.amount)
+    s.add(payment)
+    s.flush()
+    return payment
+
+
+def remove_payment(s: Session, payment_id: int) -> None:
+    require_session(s, lock=True)
+    sale = _open_sale_locked(s)
+    payment = next((p for p in sale.payments if p.id == payment_id), None)
+    if payment is None:
+        raise NotFound("Pagamento não encontrado.")
+    sale.payments.remove(payment)
+    s.flush()
+
+
+def _lock_sale(s: Session, sale_id: int | None) -> Sale:
+    if sale_id is None:
+        current = current_sale(s)
+        if current is None:
+            raise InvalidInput(NO_OPEN_SALE)
+        sale_id = current.id
+    sale = s.scalar(
+        select(Sale)
+        .where(Sale.id == sale_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if sale is None:
+        raise NotFound("Venda não encontrada.")
+    s.expire(sale, ["items", "payments"])
+    return sale
+
+
+def _needed_by_product(sale: Sale) -> dict[int, Decimal]:
+    needed: dict[int, Decimal] = {}
+    for item in sale.items:
+        needed[item.product_id] = needed.get(item.product_id, Decimal(0)) + item.quantity
+    return needed
+
+
+def complete_sale(s: Session, *, now: datetime, sale_id: int | None = None) -> Sale:
+    """Conclui a venda e baixa o estoque. Em falta, levanta InsufficientStock sem gravar nada."""
+    require_session(s, lock=True)
+    sale = _lock_sale(s, sale_id)
+    ensure_transition(sale.status, SaleStatus.COMPLETED)
+    if not sale.items:
+        raise InvalidInput("Adicione ao menos um item antes de concluir.")
+    change = compute_change(sale.total, [(p.method, p.amount) for p in sale.payments])
+
+    needed = _needed_by_product(sale)
+    shortages: list[Shortage] = []
+    for product_id in sorted(needed):
+        product = _lock_product(s, product_id)
+        if needed[product_id] > product.current_stock:
+            shortages.append(
+                Shortage(product_id, product.name, product.current_stock, needed[product_id])
+            )
+    if shortages:
+        raise InsufficientStock("Estoque insuficiente para concluir a venda.", shortages)
+
+    for product_id in sorted(needed):
+        record_movement(
+            s,
+            MovementIn(
+                product_id=product_id,
+                kind=MovementKind.SALE,
+                quantity=needed[product_id],
+                occurred_at=now,
+            ),
+            sale_id=sale.id,
+        )
+    sale.change_given = change
+    sale.status = SaleStatus.COMPLETED
+    sale.completed_at = now
+    s.flush()
+    return sale
+
+
+def adjust_for_shortage(s: Session, data: AdjustShortageIn, *, now: datetime) -> StockMovement:
+    require_session(s, lock=True)
+    sale = _open_sale_locked(s)
+    needed = _needed_by_product(sale).get(data.product_id)
+    if needed is None:
+        raise InvalidInput(NOT_SHORT)
+    product = _lock_product(s, data.product_id)
+    missing = needed - product.current_stock
+    if missing <= 0:
+        raise InvalidInput(NOT_SHORT)
+    return record_movement(
+        s,
+        MovementIn(
+            product_id=product.id,
+            kind=MovementKind.ADJUSTMENT,
+            quantity=missing,
+            occurred_at=now,
+            note=f"Ajuste no caixa: {data.reason}",
+        ),
+    )
