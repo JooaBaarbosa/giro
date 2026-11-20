@@ -45,6 +45,10 @@ class PaymentIn(BaseModel):
     amount: Amount
 
 
+class CompleteSaleIn(BaseModel):
+    sale_id: int
+
+
 class CancelSaleIn(BaseModel):
     reason: Reason
 

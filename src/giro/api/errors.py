@@ -1,5 +1,8 @@
+from decimal import Decimal
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel
 
 from giro.errors import (
     DomainError,
@@ -27,6 +30,13 @@ STATUS_BY_ERROR: dict[type[DomainError], int] = {
 }
 
 
+class ShortageOut(BaseModel):
+    product_id: int
+    name: str
+    available: Decimal
+    needed: Decimal
+
+
 def status_for(exc: DomainError) -> int:
     return STATUS_BY_ERROR.get(type(exc), 400)
 
@@ -44,7 +54,13 @@ async def _domain_error_handler(request: Request, exc: Exception) -> Response:
     assert isinstance(exc, DomainError)
     status = status_for(exc)
     if request.url.path.startswith("/api/"):
-        return JSONResponse({"detail": exc.message}, status_code=status)
+        body: dict[str, object] = {"detail": exc.message}
+        if isinstance(exc, InsufficientStock) and exc.shortages:
+            body["shortages"] = [
+                ShortageOut.model_validate(sh, from_attributes=True).model_dump(mode="json")
+                for sh in exc.shortages
+            ]
+        return JSONResponse(body, status_code=status)
 
     from giro.web.templating import render  # import tardio: web depende da api, não o contrário
 

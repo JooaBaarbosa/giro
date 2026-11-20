@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from giro.api import health
 from giro.api import inventory as api_inventory
 from giro.api import orders as api_orders
+from giro.api import pos as api_pos
 from giro.api.errors import register_error_handlers
 from giro.logging_setup import configure_logging
 from giro.web import routes as web_routes
@@ -20,6 +21,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(api_inventory.router)
     app.include_router(api_orders.router)
+    app.include_router(api_pos.router)
     app.include_router(web_routes.router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app
