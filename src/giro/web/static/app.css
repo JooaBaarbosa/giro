@@ -238,3 +238,8 @@ kbd {
   color: var(--muted);
 }
 .btn-primary kbd { background: transparent; color: inherit; border-color: currentColor; }
+
+.pos-summary { margin: 0; }
+.pos-summary > div { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.pos-summary dt { color: var(--muted); }
+.pos-summary dd { margin: 0; }

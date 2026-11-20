@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Fechar caixa{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Fechar caixa</h1>
+  <p class="muted">Turno aberto em {{ cash_session.opened_at | localdt }}. Conte o dinheiro da gaveta e informe o valor.</p>
+</div>
+{% include "_pos_summary.html" %}
+<form class="form card" method="post" action="/caixa/fechar">
+  {% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
+  <div class="form-row">
+    <label for="counted_amount">Dinheiro contado (R$)</label>
+    <input id="counted_amount" name="counted_amount" inputmode="decimal" autofocus required>
+  </div>
+  <div class="form-row">
+    <label for="note">Observação (opcional)</label>
+    <input id="note" name="note" maxlength="500">
+  </div>
+  <div>
+    <button class="btn btn-primary" type="submit">Fechar caixa</button>
+    <a class="btn" href="/caixa">Voltar ao caixa</a>
+  </div>
+</form>
+{% endblock %}

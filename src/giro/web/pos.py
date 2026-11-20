@@ -18,13 +18,15 @@ from giro.api.deps import NowDep, SessionDep
 from giro.errors import DomainError, InsufficientStock, InvalidInput, Shortage
 from giro.fmt import brl
 from giro.inventory.service import find_product_by_code
-from giro.models import CashMovementKind, Sale, Unit
+from giro.models import CashMovementKind, Sale, SaleStatus, Unit
 from giro.pos import service
 from giro.pos.codes import parse_entry
 from giro.pos.schemas import (
     AddItemIn,
     AdjustShortageIn,
+    CancelSaleIn,
     CashMovementIn,
+    CloseSessionIn,
     ItemQtyIn,
     OpenSessionIn,
     PaymentIn,
@@ -309,3 +311,115 @@ def pos_cash_movement(
         lambda: service.add_cash_movement(s, data, now=now),
         notice=lambda _: f"{label} de {brl(data.amount)} {suffix}.",
     )
+
+
+# --- Fechamento, turnos e detalhe da venda ---------------------------------------------------
+
+
+def _close_page(
+    request: Request, s: Session, session_id: int, error: str | None = None
+) -> HTMLResponse:
+    return render(
+        request,
+        "pos_close.html",
+        nav="pos",
+        cash_session=service.get_session(s, session_id),
+        summary=service.session_summary(s, session_id),
+        error=error,
+    )
+
+
+@router.get("/caixa/fechar", response_class=HTMLResponse, response_model=None)
+def pos_close_page(request: Request, s: SessionDep) -> Response:
+    cash_session = service.current_session(s)
+    if cash_session is None:
+        return RedirectResponse("/caixa", status_code=303)
+    return _close_page(request, s, cash_session.id)
+
+
+@router.post("/caixa/fechar", response_class=HTMLResponse, response_model=None)
+def pos_close(
+    request: Request,
+    s: SessionDep,
+    now: NowDep,
+    counted_amount: Annotated[str, Form()] = "",
+    note: Annotated[str, Form()] = "",
+) -> Response:
+    cash_session = service.current_session(s)
+    if cash_session is None:
+        return RedirectResponse("/caixa", status_code=303)
+    try:
+        data = CloseSessionIn.model_validate(
+            {"counted_amount": parse_decimal(counted_amount), "note": note.strip() or None}
+        )
+        closed = service.close_session(s, data, now=now)
+        s.commit()
+    except ValidationError as exc:
+        error = _first_error(exc, "Valor contado inválido.")
+    except DomainError as exc:
+        s.rollback()
+        error = exc.message
+    else:
+        return RedirectResponse(f"/caixa/turnos/{closed.id}", status_code=303)
+    return _close_page(request, s, cash_session.id, error)
+
+
+@router.get("/caixa/turnos", response_class=HTMLResponse)
+def pos_sessions(request: Request, s: SessionDep) -> HTMLResponse:
+    rows = [(cs, service.session_summary(s, cs.id)) for cs in service.list_sessions(s)]
+    return render(request, "pos_sessions.html", nav="pos", rows=rows)
+
+
+@router.get("/caixa/turnos/{session_id}", response_class=HTMLResponse)
+def pos_session_detail(request: Request, session_id: int, s: SessionDep) -> HTMLResponse:
+    cash_session = service.get_session(s, session_id)
+    return render(
+        request,
+        "pos_session_detail.html",
+        nav="pos",
+        cash_session=cash_session,
+        summary=service.session_summary(s, session_id),
+        sales=service.list_session_sales(s, session_id),
+    )
+
+
+def _sale_page(
+    request: Request, s: Session, sale_id: int, error: str | None = None
+) -> HTMLResponse:
+    sale = service.get_sale(s, sale_id)
+    return render(
+        request,
+        "pos_sale_detail.html",
+        nav="pos",
+        sale=sale,
+        cancellable=sale.status is SaleStatus.COMPLETED and sale.session.closed_at is None,
+        error=error,
+    )
+
+
+@router.get("/caixa/vendas/{sale_id}", response_class=HTMLResponse)
+def pos_sale_detail(request: Request, sale_id: int, s: SessionDep) -> HTMLResponse:
+    return _sale_page(request, s, sale_id)
+
+
+@router.post("/caixa/vendas/{sale_id}/cancelar", response_class=HTMLResponse, response_model=None)
+def pos_sale_cancel(
+    request: Request,
+    sale_id: int,
+    s: SessionDep,
+    now: NowDep,
+    reason: Annotated[str, Form()] = "",
+) -> Response:
+    service.get_sale(s, sale_id)
+    try:
+        data = CancelSaleIn.model_validate({"reason": reason})
+        service.cancel_sale(s, sale_id, data, now=now)
+        s.commit()
+    except ValidationError as exc:
+        error = _first_error(exc, "Informe o motivo do cancelamento.")
+    except DomainError as exc:
+        s.rollback()
+        error = exc.message
+    else:
+        return RedirectResponse(f"/caixa/vendas/{sale_id}", status_code=303)
+    return _sale_page(request, s, sale_id, error)

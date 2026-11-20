@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from giro.models import SaleStatus, Unit
+from giro.models import CashSession, SaleStatus, Unit
 from giro.pos import service
 from giro.pos.schemas import OpenSessionIn
 
@@ -244,3 +244,107 @@ def test_actions_without_session_show_message(client):
 
 def test_pos_assets_served(client):
     assert client.get("/static/pos.js").status_code == 200
+
+
+def _sell(client, session, entry="ARR5", amount="25,00", method="cash"):
+    _add(client, entry)
+    client.post("/caixa/pagamentos", data={"method": method, "amount": amount})
+    client.post("/caixa/concluir", data={"sale_id": _sale_id(session)})
+
+
+def test_close_without_session_redirects(client):
+    r = client.get("/caixa/fechar", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/caixa"
+
+
+def test_close_shows_summary_and_expected(client, session, open_cash, arroz):
+    _sell(client, session)
+    html = client.get("/caixa/fechar").text
+    assert "Esperado em dinheiro" in html
+    assert "R$ 125,00" in html
+    assert "Dinheiro" in html
+
+
+@pytest.mark.parametrize(
+    ("counted", "expected_text"),
+    [("120,00", "Falta R$ 5,00"), ("130,00", "Sobra R$ 5,00"), ("125,00", "Sem diferença")],
+)
+def test_close_records_difference(client, session, open_cash, arroz, counted, expected_text):
+    _sell(client, session)
+    r = client.post("/caixa/fechar", data={"counted_amount": counted}, follow_redirects=False)
+    assert r.status_code == 303
+    page = client.get(r.headers["location"])
+    assert r.headers["location"].startswith("/caixa/turnos/")
+    assert expected_text in page.text
+    assert "Contado" in page.text
+
+
+def test_close_with_open_sale_shows_service_message(client, session, open_cash, arroz):
+    _add(client, "ARR5")
+    r = client.post("/caixa/fechar", data={"counted_amount": "100,00"})
+    assert r.status_code == 200
+    assert "Conclua ou descarte a venda em andamento" in r.text
+
+
+def test_close_invalid_amount_shows_error(client, open_cash):
+    r = client.post("/caixa/fechar", data={"counted_amount": "abc"})
+    assert r.status_code == 200
+    assert 'role="alert"' in r.text
+
+
+def test_sessions_list_marks_demo(client, session, open_cash):
+    session.add(CashSession(opening_amount=Decimal(0), is_demo=True, closed_at=NOW))
+    session.commit()
+    html = client.get("/caixa/turnos").text
+    assert "Dados de demonstração" in html
+    assert "aberto" in html
+    assert "fechado" in html
+
+
+def test_session_detail_lists_sales_and_links(client, session, open_cash, arroz):
+    _sell(client, session)
+    sid = service.current_session(session).id
+    html = client.get(f"/caixa/turnos/{sid}").text
+    assert "/caixa/vendas/1" in html
+    assert 'href="/caixa"' in html
+    assert "Esperado em dinheiro" in html
+
+
+def test_unknown_ids_show_not_found(client):
+    for url in ("/caixa/turnos/999", "/caixa/vendas/999"):
+        r = client.get(url)
+        assert r.status_code == 404
+        assert "não encontrad" in r.text
+
+
+def test_sale_detail_and_cancel_returns_stock(client, session, open_cash, arroz):
+    _sell(client, session, amount="30,00")
+    html = client.get("/caixa/vendas/1").text
+    assert "Arroz 5kg" in html
+    assert "Dinheiro" in html
+    assert "concluída" in html
+    assert "Troco" in html
+    assert "/caixa/vendas/1/cancelar" in html
+    r = client.post("/caixa/vendas/1/cancelar", data={"reason": "ab"})
+    assert r.status_code == 200
+    assert "alert" in r.text
+    session.refresh(arroz)
+    assert arroz.current_stock == 9
+    r = client.post(
+        "/caixa/vendas/1/cancelar", data={"reason": "Cliente desistiu"}, follow_redirects=False
+    )
+    assert r.status_code == 303
+    assert r.headers["location"] == "/caixa/vendas/1"
+    session.refresh(arroz)
+    assert arroz.current_stock == 10
+    html = client.get("/caixa/vendas/1").text
+    assert "cancelada" in html
+    assert "Cliente desistiu" in html
+    assert "/caixa/vendas/1/cancelar" not in html
+
+
+def test_sale_of_closed_session_has_no_cancel_form(client, session, open_cash, arroz):
+    _sell(client, session)
+    client.post("/caixa/fechar", data={"counted_amount": "125,00"})
+    assert "/caixa/vendas/1/cancelar" not in client.get("/caixa/vendas/1").text

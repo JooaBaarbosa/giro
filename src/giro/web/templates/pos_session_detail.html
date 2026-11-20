@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Turno #{{ cash_session.id }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Turno #{{ cash_session.id }}</h1>
+  <p class="muted">
+    Aberto em {{ cash_session.opened_at | localdt }}{% if cash_session.closed_at %}, fechado em {{ cash_session.closed_at | localdt }}{% else %}, ainda aberto{% endif %}.
+    {% if cash_session.is_demo %}Dados de demonstração.{% endif %}
+  </p>
+  <p>
+    {% if not cash_session.closed_at %}<a class="btn" href="/caixa">Voltar ao caixa</a>{% endif %}
+    <a class="btn" href="/caixa/turnos">Todos os turnos</a>
+  </p>
+</div>
+{% include "_pos_summary.html" %}
+{% if cash_session.closed_at %}
+<div class="card">
+  <h2>Fechamento</h2>
+  <dl class="pos-summary">
+    <div><dt>Esperado</dt><dd class="num">{{ cash_session.expected_amount | brl }}</dd></div>
+    <div><dt>Contado</dt><dd class="num">{{ cash_session.counted_amount | brl }}</dd></div>
+  </dl>
+  {% set diff = cash_session.difference %}
+  <p><strong>{% if diff < 0 %}Falta {{ (-diff) | brl }}{% elif diff > 0 %}Sobra {{ diff | brl }}{% else %}Sem diferença{% endif %}</strong></p>
+  {% if cash_session.close_note %}<p class="muted">{{ cash_session.close_note }}</p>{% endif %}
+</div>
+{% endif %}
+<div class="card table-wrap">
+  <h2>Vendas do turno</h2>
+  <table>
+    <thead><tr><th>Venda</th><th>Hora</th><th>Situação</th><th class="num">Total</th></tr></thead>
+    <tbody>
+      {% for sale in sales %}
+      <tr>
+        <td><a href="/caixa/vendas/{{ sale.id }}">#{{ sale.id }}</a></td>
+        <td>{{ (sale.completed_at or sale.created_at) | localdt }}</td>
+        <td>{{ SALE_STATUS_LABELS[sale.status] }}</td>
+        <td class="num">{{ sale.total | brl }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">Nenhuma venda neste turno.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

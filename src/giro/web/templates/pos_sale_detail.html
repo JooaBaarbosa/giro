@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Venda #{{ sale.id }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Venda #{{ sale.id }}</h1>
+  <p class="muted">Situação: {{ SALE_STATUS_LABELS[sale.status] }}. <a href="/caixa/turnos/{{ sale.session_id }}">Voltar ao turno</a></p>
+</div>
+{% if sale.status.value == "cancelled" %}
+<div class="card">
+  <p><strong>Cancelada em {{ sale.cancelled_at | localdt }}.</strong></p>
+  <p>Motivo: {{ sale.cancel_reason }}</p>
+</div>
+{% endif %}
+<div class="card table-wrap">
+  <h2>Itens</h2>
+  <table>
+    <thead><tr><th>Produto</th><th class="num">Qtd</th><th class="num">Preço</th><th class="num">Total</th></tr></thead>
+    <tbody>
+      {% for item in sale.items %}
+      <tr>
+        <td>{{ item.product.name }}</td>
+        <td class="num">{{ item.quantity | qty(item.product.unit) }} <span class="unit">{{ item.product.unit.value }}</span></td>
+        <td class="num">{{ item.unit_price | brl }}</td>
+        <td class="num">{{ item.line_total | brl }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="num"><strong>Total {{ sale.total | brl }}</strong></p>
+</div>
+<div class="card">
+  <h2>Pagamentos</h2>
+  <ul>
+    {% for p in sale.payments %}<li>{{ METHOD_LABELS[p.method] }}: <span class="num">{{ p.amount | brl }}</span></li>{% endfor %}
+  </ul>
+  <p>Troco: <span class="num">{{ sale.change_given | brl }}</span></p>
+</div>
+{% if cancellable %}
+<form class="form card" method="post" action="/caixa/vendas/{{ sale.id }}/cancelar">
+  <h2>Cancelar venda</h2>
+  {% if error %}<div class="flash flash-error" role="alert">{{ error }}</div>{% endif %}
+  <div class="form-row">
+    <label for="reason">Motivo (mínimo 3 caracteres)</label>
+    <input id="reason" name="reason" maxlength="500" required>
+  </div>
+  <div><button class="btn btn-danger" type="submit">Cancelar venda e devolver estoque</button></div>
+</form>
+{% elif error %}
+<div class="flash flash-error" role="alert">{{ error }}</div>
+{% endif %}
+{% endblock %}

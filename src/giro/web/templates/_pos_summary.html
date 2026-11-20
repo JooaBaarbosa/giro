@@ -1,0 +1,13 @@
+<div class="card">
+  <h2>Resumo do turno</h2>
+  <dl class="pos-summary">
+    {% for method, total in summary.by_method.items() %}
+    <div><dt>{{ METHOD_LABELS[method] }}</dt><dd class="num">{{ total | brl }}</dd></div>
+    {% endfor %}
+    <div><dt>Vendas concluídas</dt><dd class="num">{{ summary.sales_count }} ({{ summary.sales_total | brl }})</dd></div>
+    <div><dt>Vendas canceladas</dt><dd class="num">{{ summary.cancelled_count }}</dd></div>
+    <div><dt>Suprimentos</dt><dd class="num">{{ summary.supplies | brl }}</dd></div>
+    <div><dt>Sangrias</dt><dd class="num">{{ summary.withdrawals | brl }}</dd></div>
+    <div><dt><strong>Esperado em dinheiro</strong></dt><dd class="num"><strong>{{ summary.expected_cash | brl }}</strong></dd></div>
+  </dl>
+</div>

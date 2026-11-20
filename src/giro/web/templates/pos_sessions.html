@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Turnos do caixa{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Turnos do caixa</h1>
+  <p class="muted"><a href="/caixa">Voltar ao caixa</a></p>
+</div>
+<div class="card table-wrap">
+  <table>
+    <thead><tr><th>Aberto</th><th>Fechado</th><th>Situação</th><th class="num">Vendas</th><th class="num">Total</th><th></th></tr></thead>
+    <tbody>
+      {% for cs, summary in rows %}
+      <tr>
+        <td>{{ cs.opened_at | localdt }}</td>
+        <td>{{ cs.closed_at | localdt }}</td>
+        <td>{{ "fechado" if cs.closed_at else "aberto" }}{% if cs.is_demo %} <span class="muted">Dados de demonstração</span>{% endif %}</td>
+        <td class="num">{{ summary.sales_count }}</td>
+        <td class="num">{{ summary.sales_total | brl }}</td>
+        <td><a href="/caixa/turnos/{{ cs.id }}">Detalhes</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="muted">Nenhum turno ainda.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
