@@ -55,3 +55,73 @@ def test_chart_series_embedded(client, make_product):
     match = re.search(r'<script id="sales-data" type="application/json">(.*?)</script>', html, re.S)
     assert match
     assert len(json.loads(match.group(1))["labels"]) == 30
+
+
+def _complete_sale(session, product, *, unit_cost):
+    from giro.models import CashSession, PaymentMethod, Sale, SaleItem, SalePayment, SaleStatus
+
+    cs = CashSession(opening_amount=Decimal(0))
+    session.add(cs)
+    session.flush()
+    session.add(
+        Sale(
+            session_id=cs.id,
+            status=SaleStatus.COMPLETED,
+            total=Decimal("20.00"),
+            change_given=Decimal(0),
+            completed_at=datetime.now(UTC),
+            items=[
+                SaleItem(
+                    product_id=product.id,
+                    quantity=Decimal(2),
+                    unit_price=Decimal("10.00"),
+                    unit_cost=unit_cost,
+                    line_total=Decimal("20.00"),
+                )
+            ],
+            payments=[SalePayment(method=PaymentMethod.PIX, amount=Decimal("20.00"))],
+        )
+    )
+    session.flush()
+
+
+def test_overview_sales_strip_with_sale(client, session, make_product):
+    _complete_sale(session, make_product(), unit_cost=Decimal("6.00"))
+    html = client.get("/").text
+    for label in (
+        "Vendas",
+        "Faturamento hoje",
+        "Faturamento no mês",
+        "Ticket médio",
+        "Margem bruta",
+    ):
+        assert label in html
+    assert "R$ 20,00" in html
+    assert "R$ 8,00" in html
+    assert "sobre 1 de 1 itens com custo" in html
+    assert 'id="payments-chart"' in html
+    assert 'aria-label="Vendas por forma de pagamento no mês"' in html
+    match = re.search(
+        r'<script id="payments-data" type="application/json">(.*?)</script>', html, re.S
+    )
+    assert match
+    data = json.loads(match.group(1))
+    assert data["labels"] == ["Dinheiro", "Pix", "Crédito", "Débito"]
+    assert data["values"] == [0, 20, 0, 0]
+
+
+def test_overview_sales_strip_without_sales(client, make_product):
+    make_product()
+    html = client.get("/").text
+    assert "R$ 0,00" in html
+    assert "sem vendas no mês" in html
+    assert "sem custo cadastrado" in html
+    assert "Sem vendas no mês." in html
+    assert 'id="payments-chart"' not in html
+
+
+def test_overview_margin_without_cost(client, session, make_product):
+    _complete_sale(session, make_product(), unit_cost=None)
+    html = client.get("/").text
+    assert "sem custo cadastrado" in html
+    assert "R$ 20,00" in html

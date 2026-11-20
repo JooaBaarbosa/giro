@@ -113,6 +113,7 @@ a.kpi:hover { text-decoration: none; border-color: var(--muted); }
   margin-bottom: 12px;
   flex-wrap: wrap;
 }
+.chart-title { margin: 16px 0 8px; font-size: 14px; font-weight: 600; color: var(--muted); }
 .chart-box { position: relative; height: 220px; }
 
 .table-wrap { overflow-x: auto; }

@@ -30,6 +30,46 @@
 
 <section class="card">
   <div class="card-head">
+    <h2>Vendas</h2>
+  </div>
+  <div class="kpis">
+    <div class="kpi">
+      <span class="kpi-label">Faturamento hoje</span>
+      <span class="kpi-value">{{ sales.revenue_today | brl }}</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Faturamento no mês</span>
+      <span class="kpi-value">{{ sales.revenue_month | brl }}</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Ticket médio</span>
+      {% if sales.avg_ticket_month is none %}
+      <span class="muted">sem vendas no mês</span>
+      {% else %}
+      <span class="kpi-value">{{ sales.avg_ticket_month | brl }}</span>
+      {% endif %}
+    </div>
+    <div class="kpi">
+      <span class="kpi-label">Margem bruta</span>
+      {% if sales.margin_month is none %}
+      <span class="muted">sem custo cadastrado</span>
+      {% else %}
+      <span class="kpi-value">{{ sales.margin_month | brl }}</span>
+      <span class="muted">sobre {{ sales.items_with_cost }} de {{ sales.items_month }} itens com custo</span>
+      {% endif %}
+    </div>
+  </div>
+  <h3 class="chart-title">Por forma de pagamento no mês</h3>
+  {% if has_payments %}
+  <div class="chart-box"><canvas id="payments-chart" aria-label="Vendas por forma de pagamento no mês" role="img"></canvas></div>
+  <script id="payments-data" type="application/json">{{ payments | tojson }}</script>
+  {% else %}
+  <p class="muted">Sem vendas no mês.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="card-head">
     <h2>Saídas nos últimos 30 dias</h2>
   </div>
   <div class="chart-box"><canvas id="sales-chart" aria-label="Saídas por dia" role="img"></canvas></div>
