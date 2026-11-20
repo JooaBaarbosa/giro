@@ -15,7 +15,10 @@ from giro.config import get_settings
 from giro.db import make_engine
 from giro.models import Product, Supplier, Unit
 
-TABLES = "purchase_order_items, purchase_orders, stock_movements, products, suppliers"
+TABLES = (
+    "sale_payments, sale_items, cash_movements, stock_movements, sales, cash_sessions, "
+    "purchase_order_items, purchase_orders, products, suppliers"
+)
 
 os.environ.setdefault("SERVICE_TOKEN", "test-token")
 
