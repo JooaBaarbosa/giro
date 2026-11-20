@@ -1,5 +1,6 @@
 """Turno de caixa e carrinho (venda em aberto). Sem commit aqui."""
 
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
@@ -41,7 +42,9 @@ from giro.pos.money import compute_change, line_total, validate_new_payment
 from giro.pos.schemas import (
     AddItemIn,
     AdjustShortageIn,
+    CancelSaleIn,
     CashMovementIn,
+    CloseSessionIn,
     ItemQtyIn,
     OpenSessionIn,
     PaymentIn,
@@ -351,3 +354,134 @@ def adjust_for_shortage(s: Session, data: AdjustShortageIn, *, now: datetime) ->
             note=f"Ajuste no caixa: {data.reason}",
         ),
     )
+
+
+CLOSED_SESSION_SALE = "Não é possível cancelar venda de um caixa já fechado."
+OPEN_SALE_BLOCKS_CLOSE = "Conclua ou descarte a venda em andamento antes de fechar o caixa."
+
+
+def cancel_sale(s: Session, sale_id: int, data: CancelSaleIn, *, now: datetime) -> Sale:
+    """Cancela venda concluída do turno aberto e devolve o estoque."""
+    try:
+        session = require_session(s, lock=True)
+    except NoOpenSession:
+        session = None
+    sale = _lock_sale(s, sale_id)
+    if session is None or sale.session_id != session.id:
+        raise InvalidTransition(CLOSED_SESSION_SALE)
+    ensure_transition(sale.status, SaleStatus.CANCELLED)
+    for product_id, quantity in sorted(_needed_by_product(sale).items()):
+        record_movement(
+            s,
+            MovementIn(
+                product_id=product_id,
+                kind=MovementKind.SALE_CANCEL,
+                quantity=quantity,
+                occurred_at=now,
+                note=f"Cancelamento de venda: {data.reason}",
+            ),
+            sale_id=sale.id,
+        )
+    sale.status = SaleStatus.CANCELLED
+    sale.cancelled_at = now
+    sale.cancel_reason = data.reason
+    s.flush()
+    return sale
+
+
+@dataclass(frozen=True)
+class SessionSummary:
+    by_method: dict[PaymentMethod, Decimal]
+    sales_count: int
+    sales_total: Decimal
+    cancelled_count: int
+    supplies: Decimal
+    withdrawals: Decimal
+    expected_cash: Decimal
+
+
+def _money(value: Decimal | int) -> Decimal:
+    return Decimal(value).quantize(Decimal("0.01"))
+
+
+def session_summary(s: Session, session_id: int) -> SessionSummary:
+    expected = expected_cash(s, session_id)  # também valida que o turno existe
+    by_method = {method: Decimal(0) for method in PaymentMethod}
+    rows = s.execute(
+        select(SalePayment.method, func.sum(SalePayment.amount))
+        .join(Sale, Sale.id == SalePayment.sale_id)
+        .where(Sale.session_id == session_id, Sale.status == SaleStatus.COMPLETED)
+        .group_by(SalePayment.method)
+    )
+    for method, total in rows:
+        by_method[method] = Decimal(total)
+    change = s.scalar(
+        select(func.coalesce(func.sum(Sale.change_given), 0)).where(
+            Sale.session_id == session_id, Sale.status == SaleStatus.COMPLETED
+        )
+    ) or Decimal(0)
+    by_method[PaymentMethod.CASH] -= Decimal(change)
+    sales_count, sales_total = s.execute(
+        select(func.count(Sale.id), func.coalesce(func.sum(Sale.total), 0)).where(
+            Sale.session_id == session_id, Sale.status == SaleStatus.COMPLETED
+        )
+    ).one()
+    cancelled_count = s.scalar(
+        select(func.count(Sale.id)).where(
+            Sale.session_id == session_id, Sale.status == SaleStatus.CANCELLED
+        )
+    )
+    return SessionSummary(
+        by_method={m: _money(v) for m, v in by_method.items()},
+        sales_count=sales_count,
+        sales_total=_money(sales_total),
+        cancelled_count=cancelled_count or 0,
+        supplies=_money(_movements_total(s, session_id, CashMovementKind.SUPPLY)),
+        withdrawals=_money(_movements_total(s, session_id, CashMovementKind.WITHDRAWAL)),
+        expected_cash=expected,
+    )
+
+
+def close_session(s: Session, data: CloseSessionIn, *, now: datetime) -> CashSession:
+    session = require_session(s, lock=True)
+    if current_sale(s) is not None:
+        raise InvalidTransition(OPEN_SALE_BLOCKS_CLOSE)
+    expected = expected_cash(s, session.id)
+    session.expected_amount = expected
+    session.counted_amount = data.counted_amount
+    session.difference = (data.counted_amount - expected).quantize(Decimal("0.01"))
+    session.close_note = data.note
+    session.closed_at = now
+    s.flush()
+    return session
+
+
+def get_sale(s: Session, sale_id: int) -> Sale:
+    sale = s.get(Sale, sale_id)
+    if sale is None:
+        raise NotFound("Venda não encontrada.")
+    return sale
+
+
+def get_session(s: Session, session_id: int) -> CashSession:
+    session = s.get(CashSession, session_id)
+    if session is None:
+        raise NotFound("Turno de caixa não encontrado.")
+    return session
+
+
+def list_sessions(s: Session, *, limit: int = 50) -> list[CashSession]:
+    stmt = select(CashSession).order_by(CashSession.opened_at.desc(), CashSession.id.desc())
+    return list(s.scalars(stmt.limit(limit)))
+
+
+def list_session_sales(s: Session, session_id: int) -> list[Sale]:
+    stmt = (
+        select(Sale)
+        .where(
+            Sale.session_id == session_id,
+            Sale.status.in_([SaleStatus.COMPLETED, SaleStatus.CANCELLED]),
+        )
+        .order_by(Sale.created_at.desc(), Sale.id.desc())
+    )
+    return list(s.scalars(stmt))

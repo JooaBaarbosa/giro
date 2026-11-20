@@ -32,6 +32,7 @@ KIND_LABELS = {
     MovementKind.SALE: "Venda",
     MovementKind.PURCHASE: "Entrada",
     MovementKind.ADJUSTMENT: "Ajuste",
+    MovementKind.SALE_CANCEL: "Venda cancelada",
 }
 
 

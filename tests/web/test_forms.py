@@ -229,3 +229,16 @@ def test_detail_with_sale_price_has_no_warning_and_edit_saves(client, session, m
     assert r.status_code == 200
     session.refresh(p)
     assert p.sale_price is None and p.cost_price == Decimal("3.50")
+
+
+def test_movement_form_does_not_offer_sale_cancel(client, make_product):
+    make_product()
+    assert "sale_cancel" not in client.get("/movements/new").text
+
+
+def test_movement_form_rejects_sale_cancel(client, make_product):
+    p = make_product(name="Café", current_stock=Decimal(10))
+    r = client.post("/movements", data={"product_id": p.id, "kind": "sale_cancel", "quantity": "1"})
+    assert r.status_code == 200
+    assert "Cancelamento de venda só pelo caixa." in r.text
+    assert "Venda cancelada registrada" not in r.text

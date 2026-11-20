@@ -82,6 +82,7 @@ def movement_create(
                 "note": note.strip() or None,
             }
         )
+        service.ensure_manual_kind(data.kind)
         movement = service.record_movement(s, data)
         s.commit()
     except ValidationError as exc:

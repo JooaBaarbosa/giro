@@ -123,3 +123,15 @@ def test_invalid_barcode_is_422(client, auth, make_product):
         },
     )
     assert r.status_code == 422
+
+
+def test_manual_sale_cancel_movement_rejected(client, auth, make_product):
+    p = make_product(current_stock=Decimal(5))
+    r = client.post(
+        "/api/movements",
+        headers=auth,
+        json={"product_id": p.id, "kind": "sale_cancel", "quantity": "1"},
+    )
+    assert r.status_code == 422
+    assert r.json()["detail"] == "Cancelamento de venda só pelo caixa."
+    assert client.get(f"/api/products/{p.id}/movements", headers=auth).json() == []

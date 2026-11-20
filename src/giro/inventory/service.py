@@ -186,6 +186,15 @@ def _lock_product(s: Session, product_id: int) -> Product:
     return product
 
 
+SALE_CANCEL_MANUAL = "Cancelamento de venda só pelo caixa."
+
+
+def ensure_manual_kind(kind: MovementKind) -> None:
+    """Entradas manuais (API e formulário) não podem registrar cancelamento de venda."""
+    if kind is MovementKind.SALE_CANCEL:
+        raise InvalidInput(SALE_CANCEL_MANUAL)
+
+
 def record_movement(
     s: Session,
     data: MovementIn,

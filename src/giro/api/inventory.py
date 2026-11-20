@@ -63,6 +63,7 @@ def list_movements(product_id: int, s: SessionDep, limit: int = 50) -> list[Stoc
 
 @router.post("/movements", response_model=MovementOut, status_code=status.HTTP_201_CREATED)
 def create_movement(data: MovementIn, s: SessionDep) -> StockMovement:
+    service.ensure_manual_kind(data.kind)
     movement = service.record_movement(s, data)
     s.commit()
     return movement
