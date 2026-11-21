@@ -66,6 +66,7 @@ def _context(
     cash_paid = sum((p.amount for p in payments if p.method is PaymentMethod.CASH), Decimal(0))
     excess = paid - total
     remaining = max(total - paid, Decimal(0))
+    last_item = next((i for i in items if i.id == last_item_id), items[-1] if items else None)
     return dict(
         cash_session=cash_session,
         sale=sale,
@@ -83,7 +84,15 @@ def _context(
         shortages=shortages or [],
         weight_code=weight_code,
         last_item_id=last_item_id,
+        last_item=last_item,
+        qty_step=_qty_step,
     )
+
+
+def _qty_step(item: Any, delta: int) -> str | None:
+    """Quantidade que os botões − e + enviam (un/cx); None quando ficaria abaixo de 1."""
+    target = item.quantity + delta
+    return None if target < 1 else str(target.to_integral_value())
 
 
 def _panel(request: Request, s: Session, **kwargs: Any) -> HTMLResponse:
@@ -206,18 +215,30 @@ def pos_discard(request: Request, s: SessionDep) -> HTMLResponse:
     return _act(request, s, lambda: service.discard_sale(s))
 
 
-@router.post("/caixa/pagamentos", response_class=HTMLResponse)
-def pos_add_payment(
+@router.post("/caixa/pagar", response_class=HTMLResponse)
+def pos_pay(
     request: Request,
     s: SessionDep,
+    now: NowDep,
     method: Annotated[str, Form()] = "",
     amount: Annotated[str, Form()] = "",
+    sale_id: Annotated[int | None, Form()] = None,
 ) -> HTMLResponse:
+    """Lança o pagamento e, se ele fecha o total, conclui a venda na mesma ação."""
     try:
         data = PaymentIn.model_validate({"method": method, "amount": parse_decimal(amount)})
     except ValidationError as exc:
-        return _panel(request, s, error=_first_error(exc, "Pagamento inválido."))
-    return _act(request, s, lambda: service.add_payment(s, data))
+        return _panel(request, s, error=_first_error(exc, "Valor do pagamento inválido."))
+    try:
+        service.add_payment(s, data)
+        s.commit()
+    except DomainError as exc:
+        s.rollback()
+        return _panel(request, s, error=exc.message)
+    sale = service.current_sale(s, fresh=True)
+    if sale is None or sum((p.amount for p in sale.payments), Decimal(0)) < sale.total:
+        return _panel(request, s)
+    return _complete(request, s, now, sale_id)
 
 
 @router.post("/caixa/pagamentos/{payment_id}/remover", response_class=HTMLResponse)
@@ -235,7 +256,9 @@ def _complete(request: Request, s: Session, now: datetime, sale_id: int | None) 
     except DomainError as exc:
         s.rollback()
         return _panel(request, s, error=exc.message)
-    done = f"Venda #{sale.id} concluída · troco {brl(sale.change_given)}"
+    done = f"Venda #{sale.id} concluída"
+    if sale.change_given > 0:
+        done += f" · troco {brl(sale.change_given)}"
     return _panel(request, s, done=done)
 
 

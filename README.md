@@ -102,10 +102,10 @@ Um caixa (PDV) de balcão, com um turno por vez e uma venda em aberto por vez.
 
 1. Abra `/caixa` e informe o valor inicial do troco para abrir o caixa.
 2. No campo de código, digite ou leia o **código de barras ou o SKU** do produto. Para várias unidades use `3*CODIGO`; para itens por peso, informe o peso (ex.: `0,350*CODIGO`).
-3. Registre o pagamento (dinheiro, Pix, débito ou crédito; pode dividir entre formas, com troco em dinheiro) e finalize. A venda baixa o estoque na hora.
+3. Escolha a forma de pagamento (Dinheiro, Pix, Crédito ou Débito). O valor já vem com o restante; no dinheiro, digite o valor recebido (pelo teclado ou pelo teclado numérico da tela) e o troco aparece na hora. Quando o pagamento cobre o total, a venda é concluída e baixa o estoque. Um valor menor que o restante fica como pagamento parcial, para dividir entre formas.
 4. Ao fim do dia, feche o caixa informando o valor contado; o sistema mostra a diferença para o esperado.
 
-Atalhos: **F2** foca o campo de código, **F4** finaliza a venda, **Esc** fecha o painel aberto.
+Atalhos: **F2** foca o campo de código, **F4** vai para o pagamento em dinheiro, **Esc** fecha o painel aberto. Sangria, suprimento, vendas do turno e fechamento ficam no menu **Mais**.
 
 Um leitor de código de barras USB funciona como um teclado: com o foco no campo de código, basta ler o produto.
 

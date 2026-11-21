@@ -5,12 +5,43 @@
   <a class="btn btn-primary" href="/caixa">Abrir caixa</a>
 </div>
 {% else %}
+<div class="pos-shell">
+<div class="pos-bar">
+  <span class="muted">Caixa aberto às {{ cash_session.opened_at | localdt("%H:%M") }}</span>
+  <details class="pos-more" data-subpanel {% if notice and ("Sangria" in notice or "Suprimento" in notice) %}open{% endif %}>
+    <summary class="btn">Mais</summary>
+    <div class="pos-more-menu card">
+      <form class="form" hx-post="/caixa/movimentos">
+        <h2>Sangria ou suprimento</h2>
+        <div class="form-row">
+          <label for="mov-kind">Tipo</label>
+          <select id="mov-kind" name="kind">
+            <option value="withdrawal">Sangria</option>
+            <option value="supply">Suprimento</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="mov-amount">Valor (R$)</label>
+          <input id="mov-amount" name="amount" inputmode="decimal" required>
+        </div>
+        <div class="form-row">
+          <label for="mov-note">Observação (opcional)</label>
+          <input id="mov-note" name="note" maxlength="500">
+        </div>
+        <div><button class="btn" type="submit">Registrar</button></div>
+      </form>
+      <a class="btn" href="/caixa/turnos/{{ cash_session.id }}">Vendas do turno</a>
+      <a class="btn" href="/caixa/fechar">Fechar caixa</a>
+    </div>
+  </details>
+</div>
+
 <div class="pos">
   <section class="pos-main" aria-label="Venda">
     <form class="pos-entry" hx-post="/caixa/itens" autocomplete="off">
       <label for="entry">Código ou QTD*CÓDIGO <kbd>F2</kbd></label>
       <div class="pos-entry-row">
-        <input id="entry" name="entry" value="" autocomplete="off" autocapitalize="off" spellcheck="false"
+        <input id="entry" name="entry" value="" placeholder="Leia ou digite o código" autocomplete="off" autocapitalize="off" spellcheck="false"
                {% if not weight_code %}autofocus{% endif %}>
         <button class="btn btn-primary" type="submit">Adicionar</button>
       </div>
@@ -53,116 +84,112 @@
     </div>
     {% endif %}
 
+    {% if last_item %}
+    <div class="pos-last-card" {% if last_item.id == last_item_id %}id="pos-last"{% endif %}>
+      <div>
+        <div class="pos-last-label">Último item</div>
+        <div class="pos-last-name">{{ last_item.product.name }}</div>
+        <div class="pos-last-detail">{{ last_item.quantity | qty(last_item.product.unit) }} {{ last_item.product.unit.value }} × {{ last_item.unit_price | brl }}</div>
+      </div>
+      <div class="pos-last-total">{{ last_item.line_total | brl }}</div>
+    </div>
+    {% endif %}
+
     <div class="card pos-cart">
       {% if items %}
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Item</th><th class="num">Qtd</th><th class="num">Preço</th><th class="num">Total</th><th></th></tr></thead>
-          <tbody>
-            {% for item in items %}
-            <tr {% if item.id == last_item_id %}class="pos-last" id="pos-last"{% endif %}>
-              <td>{{ item.product.name }}
-                {% if over_stock(item) %}<span class="pos-warn">acima do estoque (disponível {{ item.product.current_stock | qty(item.product.unit) }})</span>{% endif %}
-              </td>
-              <td class="num">
-                <form class="form-inline pos-qty" hx-post="/caixa/itens/{{ item.id }}">
-                  <input name="quantity" inputmode="decimal" size="6" value="{{ item.quantity | qty(item.product.unit) }}" aria-label="Quantidade de {{ item.product.name }}">
-                  <span class="unit">{{ item.product.unit.value }}</span>
-                  <button class="btn" type="submit">Salvar</button>
-                </form>
-              </td>
-              <td class="num">{{ item.unit_price | brl }}</td>
-              <td class="num">{{ item.line_total | brl }}</td>
-              <td><button class="btn btn-danger" type="button" hx-post="/caixa/itens/{{ item.id }}/remover" aria-label="Remover {{ item.product.name }}">Remover</button></td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <p class="empty">Nenhum item. Leia o código de barras ou digite o código e tecle Enter.</p>
-      {% endif %}
-    </div>
-  </section>
-
-  <aside class="pos-side" aria-label="Pagamento">
-    <div class="card pos-total">
-      <span class="kpi-label">Total</span>
-      <span class="pos-total-value">{{ total | brl }}</span>
-    </div>
-
-    <div class="card">
-      <h2>Pagamentos</h2>
-      {% if payments %}
-      <ul class="pos-payments">
-        {% for p in payments %}
-        <li data-testid="payment-row">
-          <span>{{ METHOD_LABELS[p.method] }}</span>
-          <span class="num">{{ p.amount | brl }}</span>
-          <button class="btn btn-danger" type="button" hx-post="/caixa/pagamentos/{{ p.id }}/remover" aria-label="Remover pagamento {{ METHOD_LABELS[p.method] }}">Remover</button>
+      <ul class="pos-lines">
+        {% for item in items %}
+        <li class="pos-line-item">
+          <div class="pos-item-name">
+            <strong>{{ item.product.name }}</strong>
+            <span class="muted">{{ item.unit_price | brl }} {% if item.product.unit.value == "kg" %}o kg{% else %}cada{% endif %}</span>
+            {% if over_stock(item) %}<span class="pos-warn">acima do estoque (disponível {{ item.product.current_stock | qty(item.product.unit) }})</span>{% endif %}
+          </div>
+          <div class="pos-item-qty">
+            {% if item.product.unit.value == "kg" %}
+            <form class="pos-weight-edit" hx-post="/caixa/itens/{{ item.id }}">
+              <input name="quantity" inputmode="decimal" value="{{ item.quantity | qty(item.product.unit) }}" aria-label="Peso de {{ item.product.name }}">
+              <span class="unit">kg</span>
+            </form>
+            {% else %}
+            {% set down = qty_step(item, -1) %}
+            <button class="btn pos-step" type="button" hx-post="/caixa/itens/{{ item.id }}" hx-vals='{"quantity": "{{ down or 1 }}"}' aria-label="Diminuir {{ item.product.name }}"{% if not down %} disabled{% endif %}>
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <span class="pos-qty-value">{{ item.quantity | qty(item.product.unit) }}</span>
+            <button class="btn pos-step" type="button" hx-post="/caixa/itens/{{ item.id }}" hx-vals='{"quantity": "{{ qty_step(item, 1) }}"}' aria-label="Aumentar {{ item.product.name }}">
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M8 3v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            {% endif %}
+          </div>
+          <div class="pos-item-total">{{ item.line_total | brl }}</div>
+          <button class="btn pos-remove" type="button" hx-post="/caixa/itens/{{ item.id }}/remover" aria-label="Remover {{ item.product.name }}">
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
         </li>
         {% endfor %}
       </ul>
       {% else %}
-      <p class="muted">Nenhum pagamento lançado.</p>
+      <p class="empty">Nenhum item. Leia o código de barras ou digite o código e tecle Enter.</p>
       {% endif %}
-      {% if sale %}
-      <p class="pos-line"><span>Restante</span><strong class="num">{{ remaining | brl }}</strong></p>
-      {% if change > 0 %}<p class="pos-line pos-change"><strong class="num">Troco {{ change | brl }}</strong></p>{% endif %}
-      <details class="pos-subpanel" data-subpanel open>
-        <summary>Lançar pagamento</summary>
-        <form class="form" hx-post="/caixa/pagamentos">
-          <div class="form-row">
-            <label for="pay-method">Forma</label>
-            <select id="pay-method" name="method">
-              {% for method, label in METHOD_LABELS.items() %}
-              <option value="{{ method.value }}">{{ label }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="form-row">
-            <label for="pay-amount">Valor (R$)</label>
-            <input id="pay-amount" name="amount" inputmode="decimal" value="{{ pay_default }}">
-          </div>
-          <div><button class="btn" type="submit">Lançar</button></div>
-        </form>
-      </details>
-      {% endif %}
+    </div>
+    {% if sale %}
+    <button class="pos-cancel" type="button" hx-post="/caixa/descartar" hx-confirm="Cancelar a venda em andamento?">Cancelar venda</button>
+    {% endif %}
+  </section>
+
+  <aside class="pos-pay card" aria-label="Pagamento">
+    <div class="pos-total">
+      <span class="muted">Total</span>
+      <span class="pos-total-value">{{ total | brl }}</span>
     </div>
 
-    <div class="pos-actions">
-      {% if sale %}
-      <form id="finish-form" hx-post="/caixa/concluir">
-        <input type="hidden" name="sale_id" value="{{ sale.id }}">
-        <button class="btn btn-primary pos-finish" type="submit">Finalizar venda <kbd>F4</kbd></button>
-      </form>
-      <button class="btn btn-danger" type="button" hx-post="/caixa/descartar" hx-confirm="Descartar a venda em andamento?">Descartar venda</button>
-      {% endif %}
-      <details class="pos-subpanel" data-subpanel {% if notice and ("Sangria" in notice or "Suprimento" in notice) %}open{% endif %}>
-        <summary>Sangria ou suprimento</summary>
-        <form class="form" hx-post="/caixa/movimentos">
-          <div class="form-row">
-            <label for="mov-kind">Tipo</label>
-            <select id="mov-kind" name="kind">
-              <option value="withdrawal">Sangria</option>
-              <option value="supply">Suprimento</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <label for="mov-amount">Valor (R$)</label>
-            <input id="mov-amount" name="amount" inputmode="decimal" required>
-          </div>
-          <div class="form-row">
-            <label for="mov-note">Observação (opcional)</label>
-            <input id="mov-note" name="note" maxlength="500">
-          </div>
-          <div><button class="btn" type="submit">Registrar</button></div>
-        </form>
-      </details>
-      <a class="btn" href="/caixa/turnos/{{ cash_session.id }}">Vendas do turno</a>
-      <a class="btn" href="/caixa/fechar">Fechar caixa</a>
-    </div>
-    <p class="muted pos-keys"><kbd>F2</kbd> código · <kbd>F4</kbd> finalizar · <kbd>Esc</kbd> fechar painel</p>
+    {% if payments %}
+    <ul class="pos-payments">
+      {% for p in payments %}
+      <li data-testid="payment-row">
+        <span>{{ METHOD_LABELS[p.method] }}</span>
+        <span class="num">{{ p.amount | brl }}</span>
+        <button class="btn pos-remove" type="button" hx-post="/caixa/pagamentos/{{ p.id }}/remover" aria-label="Remover pagamento {{ METHOD_LABELS[p.method] }}">
+          <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="pos-row"><span>Restante</span><strong class="num">{{ remaining | brl }}</strong></p>
+    {% if change > 0 %}<p class="pos-row pos-change-line"><span>Troco</span><strong class="num">{{ change | brl }}</strong></p>{% endif %}
+    {% endif %}
+
+    {% if sale and items and remaining > 0 %}
+    <form id="pay-form" class="pos-pay-form" hx-post="/caixa/pagar">
+      <input type="hidden" name="sale_id" value="{{ sale.id }}">
+      <input type="hidden" name="method" id="pay-method" value="cash">
+      <div class="pos-methods" role="group" aria-label="Forma de pagamento">
+        {% for method, label in METHOD_LABELS.items() %}
+        <button class="btn pos-method" type="button" data-pay-method="{{ method.value }}" aria-pressed="{{ 'true' if loop.first else 'false' }}">{{ label }}</button>
+        {% endfor %}
+      </div>
+      <label for="pay-amount" id="pay-amount-label">Valor recebido</label>
+      <input id="pay-amount" name="amount" inputmode="decimal" autocomplete="off" value="{{ pay_default }}" data-remaining="{{ remaining }}">
+      <div class="pos-keypad" aria-label="Teclado numérico">
+        {% for key in ["7", "8", "9", "4", "5", "6", "1", "2", "3", "00", "0"] %}
+        <button class="btn" type="button" data-key="{{ key }}">{{ key }}</button>
+        {% endfor %}
+        <button class="btn" type="button" data-key="back">Apagar</button>
+      </div>
+      <p class="pos-row pos-change-line" id="pay-change" aria-live="polite"></p>
+      <button class="btn btn-primary pos-finish" id="pay-submit" type="submit">Concluir venda</button>
+    </form>
+    {% elif sale and items %}
+    <form hx-post="/caixa/concluir">
+      <input type="hidden" name="sale_id" value="{{ sale.id }}">
+      <button class="btn btn-primary pos-finish" type="submit">Concluir venda</button>
+    </form>
+    {% else %}
+    <p class="muted">Adicione itens para receber o pagamento.</p>
+    {% endif %}
+    <p class="muted pos-keys"><kbd>F2</kbd> código · <kbd>F4</kbd> dinheiro · <kbd>Esc</kbd> fechar painel</p>
   </aside>
+</div>
 </div>
 {% endif %}

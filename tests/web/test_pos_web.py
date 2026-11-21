@@ -152,43 +152,105 @@ def test_discard_sale(client, session, open_cash, arroz):
     assert service.current_sale(session) is None
 
 
-def test_payment_prefilled_remaining_and_change_preview(client, open_cash, arroz):
+def _pay(client, session, method, amount):
+    sale = service.current_sale(session, fresh=True)
+    data = {"method": method, "amount": amount}
+    if sale is not None:
+        data["sale_id"] = sale.id
+    return client.post("/caixa/pagar", data=data)
+
+
+def test_pay_panel_has_method_tabs_keypad_and_last_item(client, open_cash, arroz):
+    html = _add(client, "ARR5").text
+    for method in ("cash", "pix", "credit", "debit"):
+        assert f'data-pay-method="{method}"' in html
+    assert 'id="pay-amount"' in html
+    assert 'value="25,00"' in html
+    assert "data-key=" in html
+    assert "Concluir venda" in html
+    assert "Último item" in html
+    assert '/caixa/pagamentos"' not in html
+
+
+def test_pay_pix_full_amount_completes_sale(client, session, open_cash, arroz):
     _add(client, "ARR5")
-    r = client.post("/caixa/pagamentos", data={"method": "cash", "amount": "10,00"})
-    assert "Dinheiro" in r.text
+    r = _pay(client, session, "pix", "25,00")
+    assert "Venda #1 concluída" in r.text
+    assert "troco" not in r.text
+    session.refresh(arroz)
+    assert arroz.current_stock == 9
+    assert 'id="entry"' in r.text
+
+
+def test_pay_cash_with_change_completes_sale(client, session, open_cash, arroz):
+    _add(client, "ARR5")
+    r = _pay(client, session, "cash", "50,00")
+    assert "Venda #1 concluída" in r.text
+    assert "troco R$ 25,00" in r.text
+
+
+def test_pay_partial_keeps_sale_open_then_completes(client, session, open_cash, arroz):
+    _add(client, "ARR5")
+    r = _pay(client, session, "pix", "10,00")
+    assert "concluída" not in r.text
+    assert 'data-testid="payment-row"' in r.text
     assert 'value="15,00"' in r.text
-    r = client.post("/caixa/pagamentos", data={"method": "cash", "amount": "50,00"})
-    assert "Troco R$ 35,00" in r.text
+    r = _pay(client, session, "cash", "20,00")
+    assert "Venda #1 concluída" in r.text
+    assert "troco R$ 5,00" in r.text
+
+
+def test_pay_pix_overpay_message(client, session, open_cash, arroz):
+    _add(client, "ARR5")
+    r = _pay(client, session, "pix", "30,00")
+    assert "troco só em dinheiro" in r.text
+    assert service.current_sale(session, fresh=True).status is SaleStatus.OPEN
+
+
+def test_pay_invalid_amount_message(client, session, open_cash, arroz):
+    _add(client, "ARR5")
+    r = _pay(client, session, "cash", "abc")
+    assert 'role="alert"' in r.text
+
+
+def test_pay_without_open_sale(client, open_cash):
+    r = client.post("/caixa/pagar", data={"method": "cash", "amount": "10,00"})
+    assert "Não há venda em andamento." in r.text
 
 
 def test_remove_payment(client, session, open_cash, arroz):
     _add(client, "ARR5")
-    client.post("/caixa/pagamentos", data={"method": "pix", "amount": "25,00"})
+    _pay(client, session, "pix", "10,00")
     payment = service.current_sale(session, fresh=True).payments[0]
     r = client.post(f"/caixa/pagamentos/{payment.id}/remover")
     assert 'data-testid="payment-row"' not in r.text
     assert 'value="25,00"' in r.text
 
 
-def test_pix_overpay_message(client, open_cash, arroz):
-    _add(client, "ARR5")
-    r = client.post("/caixa/pagamentos", data={"method": "pix", "amount": "30,00"})
-    assert "troco só em dinheiro" in r.text
+def test_quantity_buttons(client, session, open_cash, arroz, tomate):
+    html = _add(client, "ARR5").text
+    item = service.current_sale(session, fresh=True).items[0]
+    assert f'hx-post="/caixa/itens/{item.id}"' in html
+    assert '"quantity": "2"' in html
+    assert 'aria-label="Diminuir Arroz 5kg" disabled' in html
+    html = client.post(f"/caixa/itens/{item.id}", data={"quantity": "2"}).text
+    assert '"quantity": "1"' in html
+    assert 'aria-label="Diminuir Arroz 5kg" disabled' not in html
+    html = _add(client, "0,5*TOM").text
+    assert 'aria-label="Diminuir Tomate"' not in html
+    assert 'aria-label="Peso de Tomate"' in html
+
+
+def test_more_menu_holds_secondary_actions(client, open_cash):
+    html = client.get("/caixa").text
+    more = html[html.index('class="pos-more"') :]
+    assert "Sangria" in more
+    assert "Vendas do turno" in more
+    assert "Fechar caixa" in more
 
 
 def _sale_id(session):
     return service.current_sale(session, fresh=True).id
-
-
-def test_complete_sale(client, session, open_cash, arroz):
-    _add(client, "ARR5")
-    client.post("/caixa/pagamentos", data={"method": "cash", "amount": "30,00"})
-    r = client.post("/caixa/concluir", data={"sale_id": _sale_id(session)})
-    assert "Venda #1 concluída" in r.text
-    assert "troco R$ 5,00" in r.text
-    session.refresh(arroz)
-    assert arroz.current_stock == 9
-    assert 'id="entry"' in r.text
 
 
 def test_complete_without_payment_shows_error(client, session, open_cash, arroz):
@@ -204,11 +266,11 @@ def test_complete_without_open_sale(client, open_cash):
 
 def test_shortage_flow_adjust_and_continue(client, session, open_cash, arroz):
     _add(client, "12*ARR5")
-    client.post("/caixa/pagamentos", data={"method": "pix", "amount": "300,00"})
     sale_id = _sale_id(session)
-    r = client.post("/caixa/concluir", data={"sale_id": sale_id})
+    r = _pay(client, session, "pix", "300,00")
     assert "Estoque insuficiente" in r.text
     assert "Ajustar estoque e continuar" in r.text
+    assert 'hx-post="/caixa/concluir"' in r.text
     session.refresh(arroz)
     assert arroz.current_stock == 10
     r = client.post(
@@ -248,8 +310,7 @@ def test_pos_assets_served(client):
 
 def _sell(client, session, entry="ARR5", amount="25,00", method="cash"):
     _add(client, entry)
-    client.post("/caixa/pagamentos", data={"method": method, "amount": amount})
-    client.post("/caixa/concluir", data={"sale_id": _sale_id(session)})
+    _pay(client, session, method, amount)
 
 
 def test_close_without_session_redirects(client):
@@ -368,7 +429,7 @@ def test_sale_detail_labels_demo_session(client, session, open_cash, arroz):
 def test_no_change_preview_when_excess_is_not_cash(client, open_cash, arroz, tomate):
     _add(client, "ARR5")
     _add(client, "1*TOM")
-    client.post("/caixa/pagamentos", data={"method": "pix", "amount": "33,00"})
+    client.post("/caixa/pagar", data={"method": "pix", "amount": "30,00"})
     html = client.post("/caixa/itens/2/remover").text
     assert "Arroz 5kg" in html
     assert "Tomate" not in html
