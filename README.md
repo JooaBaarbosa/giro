@@ -11,6 +11,31 @@ Dashboard de estoque para pequeno comércio. Mostra o que saiu no dia e no mês,
 - **Previsão explicável:** média móvel de 30 dias → dias até o mínimo → data e quantidade sugerida para cobrir N dias.
 - **Pedido sugerido** por fornecedor, sem duplicar. Os itens são editáveis antes de aprovar, e há uma prévia da mensagem.
 - **Automação com n8n:** a cada 15 min, verifica o estoque e alerta o dono no WhatsApp. Na aprovação, envia o template ao fornecedor e registra o resultado (enviado, simulado ou falhou com o erro da Meta).
+- **Caixa (PDV):** venda por código de barras ou SKU, pagamento em dinheiro, Pix ou cartão (pode dividir), troco calculado e baixa automática no estoque. Abertura, sangria, suprimento e fechamento de caixa com conferência.
+
+## O fluxo em telas
+
+Capturas feitas com os dados de demonstração do seed (uma mercearia fictícia); nenhum número é de uma loja real.
+
+**1. Produtos.** Cadastro com fornecedor, estoque mínimo, preço de venda e código de barras.
+
+![Lista de produtos com estoque, mínimo e preço](docs/images/01-produtos.jpg)
+
+**2. Caixa.** O operador lê ou digita o código, ajusta a quantidade com − e + e escolhe a forma de pagamento. No dinheiro, o troco aparece enquanto digita; quando o pagamento cobre o total, a venda é concluída e o estoque baixa na hora.
+
+![Tela do caixa com carrinho, último item, teclado numérico e troco](docs/images/02-caixa.jpg)
+
+**3. Fechamento do caixa.** Resumo do turno por forma de pagamento e o dinheiro esperado na gaveta. O operador informa o valor contado e o sistema registra a diferença.
+
+![Fechamento do caixa com resumo do turno e esperado em dinheiro](docs/images/03-fechamento.jpg)
+
+**4. Visão geral.** Itens abaixo do mínimo, saídas do dia e do mês, faturamento, ticket médio, margem bruta e vendas por forma de pagamento.
+
+![Visão geral com indicadores de estoque e de vendas](docs/images/04-visao-geral.jpg)
+
+**5. Pedidos de compra.** Quando um item fica abaixo do mínimo, o Giro monta o pedido por fornecedor, com a prévia da mensagem de WhatsApp. Nada é enviado sem a aprovação do dono.
+
+![Pedidos sugeridos por fornecedor com prévia da mensagem](docs/images/05-pedidos.jpg)
 
 ## Arquitetura
 

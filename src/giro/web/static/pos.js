@@ -70,15 +70,21 @@
     updatePayment();
   }
 
-  // O primeiro toque no teclado troca o valor sugerido; os seguintes acrescentam.
+  // O teclado da tela escreve como o teclado físico (200 = R$ 200; vírgula para centavos).
+  // O primeiro toque troca o valor sugerido; os seguintes acrescentam.
   function pressKey(key) {
     var amount = document.getElementById("pay-amount");
     if (!amount) return;
-    var digits = amount.dataset.fresh === "0" ? amount.value.replace(/\D/g, "") : "";
+    var text = amount.dataset.fresh === "0" ? amount.value : "";
     amount.dataset.fresh = "0";
-    digits = key === "back" ? digits.slice(0, -1) : (digits + key).replace(/^0+(?=\d)/, "");
-    var cents = Number(digits || "0");
-    amount.value = brl(cents).replace("R$ ", "");
+    if (key === "back") {
+      text = text.slice(0, -1);
+    } else if (key === ",") {
+      if (text.indexOf(",") === -1) text = (text || "0") + ",";
+    } else if (!/,\d\d$/.test(text)) {
+      text = (text + key).replace(/^0+(?=\d)/, "");
+    }
+    amount.value = text;
     updatePayment();
     // O foco volta ao valor: assim o Enter lança o pagamento em vez de repetir a tecla.
     amount.focus();
